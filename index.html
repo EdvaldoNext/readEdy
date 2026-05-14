@@ -1055,6 +1055,7 @@
         }
 
         const utterance = new SpeechSynthesisUtterance(speakText);
+        let utteranceStarted = false; /* flag: onstart disparou para esta utterance */
         currentUtterance = utterance;
         const voice = getSelectedVoice();
         if (voice) {
@@ -1068,6 +1069,7 @@
         utterance.onstart = () => {
             if (currentUtterance !== utterance) return;
             _clearTtsWatchdog();
+            utteranceStarted = true;
             ttsAbsCharEnd = utteranceCharOffset;
             isReading = true;
             speakLock = false;
@@ -1086,6 +1088,22 @@
         utterance.onend = async () => {
             if (currentUtterance !== utterance) return;
             _clearTtsWatchdog();
+
+            /* Se onstart nunca disparou significa que o Chrome em HTTPS bloqueou
+               speak() silenciosamente e disparou onend imediatamente.
+               NÃO avançar páginas — isso causaria loop de skip até ao fim do PDF. */
+            if (!utteranceStarted) {
+                isReading = false;
+                currentUtterance = null;
+                speakLock = false;
+                btn.textContent = '🔊 Ouvir';
+                btn.className = 'btn btn-tts';
+                ttsPanel.classList.add('hidden');
+                updateTtsButtonLabel();
+                showTtsToast('Toque em Ouvir para iniciar (requer interação com a página).');
+                return;
+            }
+
             const continuous = document.getElementById('continuous-read').checked;
             const hasNext = pageNum < pdfDoc.numPages;
             isReading = false;
@@ -1112,25 +1130,28 @@
             _clearTtsWatchdog();
             const code = (ev && ev.error) ? String(ev.error).toLowerCase() : '';
             const isSilent = code === 'interrupted' || code === 'canceled' || code === 'cancelled';
-            if (isSilent && isReading) return;
+            if (isSilent && utteranceStarted) return; /* interrompido durante leitura real — ok */
             if (!isSilent) {
                 console.warn('TTS onerror:', ev.error);
-                if (code !== 'not-allowed') alert('Erro na síntese de voz: ' + (ev.error || 'desconhecido'));
             }
             stopTTS();
+            if (code === 'not-allowed') {
+                showTtsToast('Leitura bloqueada pelo browser. Toque em Ouvir para tentar novamente.');
+            }
         };
 
         /* Workaround Chrome HTTPS: o browser às vezes pausa o speechSynthesis
            silenciosamente; resume() antes de speak() desbloqueia. */
-        if (synth.paused) synth.resume();
+        try { if (synth.paused) synth.resume(); } catch(e) {}
 
-        /* Watchdog: se onstart não disparar em 3 s, Chrome bloqueou silenciosamente. */
+        /* Watchdog: se onstart não disparar em 3 s e onend também não, Chrome bloqueou. */
         _clearTtsWatchdog();
         ttsWatchdogTimer = setTimeout(() => {
             ttsWatchdogTimer = null;
-            if (currentUtterance === utterance && !isReading) {
-                console.warn('TTS watchdog: onstart nunca disparou — Chrome pode ter bloqueado speak() em HTTPS.');
+            if (currentUtterance === utterance && !utteranceStarted) {
+                console.warn('TTS watchdog: onstart nunca disparou — Chrome bloqueou speak() em HTTPS.');
                 stopTTS();
+                showTtsToast('Toque em Ouvir para iniciar (requer interação com a página).');
             }
         }, 3000);
 
