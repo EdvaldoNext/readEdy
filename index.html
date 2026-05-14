@@ -64,6 +64,8 @@
         #cloud-badge { font-size: 0.72rem; opacity: 0.85; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         #btn-cloud-save:disabled,
         #btn-cloud-delete:disabled { opacity: 0.45; cursor: not-allowed; }
+        #tts-toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(10px); background: rgba(30,30,30,0.92); color: #fff; padding: 9px 20px; border-radius: 20px; font-size: 0.82rem; pointer-events: none; opacity: 0; transition: opacity 0.25s, transform 0.25s; z-index: 3000; white-space: nowrap; }
+        #tts-toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
         .settings-wrap { position: relative; z-index: 4100; }
         .settings-panel { display: none; position: absolute; right: 0; top: 100%; margin-top: 8px; min-width: min(272px, calc(100vw - 24px)); max-width: calc(100vw - 24px); background: var(--panel); color: var(--text); border-radius: 10px; box-shadow: 0 10px 32px rgba(0,0,0,0.22); padding: 12px 14px; z-index: 4000; text-align: left; box-sizing: border-box; }
         .settings-panel.open { display: block; }
@@ -138,6 +140,7 @@
     </div>
 </main>
 
+<div id="tts-toast" role="status" aria-live="polite"></div>
 <button type="button" id="btn-show-chrome" title="Mostrar barras de ferramentas">☰ Mostrar controles</button>
 
 <div id="nav-controls" class="controls-bottom hidden">
@@ -988,6 +991,16 @@
         if (ttsWatchdogTimer != null) { clearTimeout(ttsWatchdogTimer); ttsWatchdogTimer = null; }
     }
 
+    let _toastTimer = null;
+    function showTtsToast(msg) {
+        const el = document.getElementById('tts-toast');
+        if (!el) return;
+        el.textContent = msg;
+        el.classList.add('visible');
+        clearTimeout(_toastTimer);
+        _toastTimer = setTimeout(() => el.classList.remove('visible'), 2800);
+    }
+
     /* Núcleo síncrono: recebe texto já extraído e chama synth.speak() diretamente.
        Não contém nenhum await — obrigatório para Chrome em HTTPS respeitar o gesto do utilizador. */
     function _executeSpeech(text, ranges) {
@@ -997,8 +1010,20 @@
         const btn = document.getElementById('btn-tts');
 
         if (!text || !text.trim()) {
-            alert('Esta página parece não ter texto legível (pode ser só imagem).');
-            stopTTS();
+            speakLock = false;
+            const btnT = document.getElementById('btn-tts');
+            btnT.textContent = '🔊 Ouvir';
+            btnT.className = 'btn btn-tts';
+            const contEl = document.getElementById('continuous-read');
+            const isCont = contEl && contEl.checked;
+            const hasNext = pdfDoc && pageNum < pdfDoc.numPages;
+            if (isCont && hasNext) {
+                showTtsToast('Página sem texto — avançando...');
+                pageNum += 1;
+                renderPage(pageNum, true).then(() => speakCurrentPage());
+            } else {
+                showTtsToast('Esta página não tem texto legível.');
+            }
             return;
         }
 
@@ -1131,7 +1156,7 @@
             _executeSpeech(built.text, built.ranges);
         } catch (e) {
             console.error(e);
-            alert('Erro ao extrair texto da página.');
+            showTtsToast('Erro ao extrair texto da página.');
             stopTTS();
         }
     }
@@ -1155,15 +1180,16 @@
         }
         if (!pdfDoc || isRendering) return;
 
-        /* Caminho síncrono direto — usa cache já populada em renderPage. */
-        if (ttsPageCache.pageNum === pageNum && ttsPageCache.text && ttsPageCache.text.trim()) {
-            _executeSpeech(ttsPageCache.text, ttsPageCache.ranges || []);
+        /* Se a cache já foi populada para esta página (com ou sem texto), usar o caminho
+           síncrono. Isso inclui páginas sem texto — _executeSpeech trata o caso vazio. */
+        if (ttsPageCache.pageNum === pageNum) {
+            _executeSpeech(ttsPageCache.text || '', ttsPageCache.ranges || []);
             return;
         }
 
-        /* Cache não disponível (caso improvável com botão desativado durante render).
-           Mostrar indicador e extrair de forma assíncrona — pode não funcionar em
-           Chrome HTTPS sem gesto, mas é o fallback. */
+        /* Cache ainda não existe para esta página — caso improvável porque o botão fica
+           desativado durante renderPage. Async fallback (pode não falar no Chrome HTTPS,
+           mas pelo menos não bloqueia a UI). */
         const btn = document.getElementById('btn-tts');
         btn.textContent = '⌛ extraindo...';
         speakLock = true;
