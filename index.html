@@ -182,8 +182,8 @@
     const LS_RESUME_CLOUD = 'readera-resume-cloud';
     const LS_LAST_CLOUD_DOC = 'readera_last_cloud_doc_id';
     let ttsCharRanges = [];
-    /** Texto/ranges da página visível, preenchido em renderPage — evita await antes de synth.speak (Chrome em HTTPS exige gesto do utilizador). */
     let ttsPageCache = { pageNum: null, text: '', ranges: [] };
+    let ttsWatchdogTimer = null;
     let pdfTextLayerSpans = null;
     let ttsResumeCharOffset = 0;
     let ttsResumePageNum = null;
@@ -984,163 +984,203 @@
         ttsStopRequested = false;
     }
 
-    async function speakCurrentPage() {
-        if (speakLock) return;
-        if (!pdfDoc || isRendering) return;
+    function _clearTtsWatchdog() {
+        if (ttsWatchdogTimer != null) { clearTimeout(ttsWatchdogTimer); ttsWatchdogTimer = null; }
+    }
+
+    /* Núcleo síncrono: recebe texto já extraído e chama synth.speak() diretamente.
+       Não contém nenhum await — obrigatório para Chrome em HTTPS respeitar o gesto do utilizador. */
+    function _executeSpeech(text, ranges) {
+        if (speakLock && currentUtterance) return;
         speakLock = true;
         ttsStopRequested = false;
         const btn = document.getElementById('btn-tts');
-        btn.textContent = '⌛ extraindo...';
 
-        try {
-            let text;
-            let ranges;
-            const cacheOk = ttsPageCache.pageNum === pageNum && typeof ttsPageCache.text === 'string';
-            if (cacheOk) {
-                text = ttsPageCache.text;
-                ranges = ttsPageCache.ranges || [];
-            } else {
-                const page = await pdfDoc.getPage(pageNum);
-                const textContent = await page.getTextContent();
-                const items = textContent.items || [];
-                const built = buildTtsTextAndRanges(items);
-                text = built.text;
-                ranges = built.ranges;
-                ttsPageCache = { pageNum: pageNum, text: text, ranges: ranges };
-            }
+        if (!text || !text.trim()) {
+            alert('Esta página parece não ter texto legível (pode ser só imagem).');
+            stopTTS();
+            return;
+        }
 
-            if (ttsStopRequested) {
+        ttsLastFullTextLen = text.length;
+        let resumeFrom = 0;
+        if (ttsResumePageNum === pageNum && ttsResumeCharOffset > 0 && ttsResumeCharOffset < text.length) {
+            resumeFrom = ttsResumeCharOffset;
+        }
+        const speakText = text.slice(resumeFrom);
+        if (!speakText.trim()) {
+            resetTtsBookmark();
+            speakLock = false;
+            btn.textContent = '🔊 Ouvir';
+            btn.className = 'btn btn-tts';
+            updateTtsButtonLabel();
+            return;
+        }
+
+        const utteranceCharOffset = resumeFrom;
+        ttsAbsCharEnd = resumeFrom;
+        ttsCharRanges = ranges;
+        fullPageText = text;
+        if (syncPanelEnabled()) {
+            ttsLiveText.textContent = text;
+            ttsPanel.classList.remove('hidden');
+        } else {
+            ttsLiveText.textContent = '';
+            ttsPanel.classList.add('hidden');
+        }
+
+        const utterance = new SpeechSynthesisUtterance(speakText);
+        currentUtterance = utterance;
+        const voice = getSelectedVoice();
+        if (voice) {
+            utterance.voice = voice;
+            utterance.lang = voice.lang || 'pt-BR';
+        } else {
+            utterance.lang = 'pt-BR';
+        }
+        utterance.rate = Number(rateRange.value);
+
+        utterance.onstart = () => {
+            if (currentUtterance !== utterance) return;
+            _clearTtsWatchdog();
+            ttsAbsCharEnd = utteranceCharOffset;
+            isReading = true;
+            speakLock = false;
+            btn.textContent = '⏹ Parar';
+            btn.className = 'btn btn-stop';
+        };
+
+        utterance.onboundary = (ev) => {
+            if (currentUtterance !== utterance) return;
+            if (ev.charIndex === undefined) return;
+            const cl = ev.charLength || 1;
+            ttsAbsCharEnd = utteranceCharOffset + ev.charIndex + cl;
+            updateHighlight(utteranceCharOffset + ev.charIndex, cl);
+        };
+
+        utterance.onend = async () => {
+            if (currentUtterance !== utterance) return;
+            _clearTtsWatchdog();
+            const continuous = document.getElementById('continuous-read').checked;
+            const hasNext = pageNum < pdfDoc.numPages;
+            isReading = false;
+            currentUtterance = null;
+            ttsAbsCharEnd = text.length;
+
+            if (continuous && hasNext) {
+                resetTtsBookmark();
                 speakLock = false;
-                btn.textContent = '🔊 Ouvir';
-                btn.className = 'btn btn-tts';
-                updateTtsButtonLabel();
-                return;
-            }
-
-            if (!text.trim()) {
-                alert('Esta página parece não ter texto legível (pode ser só imagem).');
-                stopTTS();
-                return;
-            }
-
-            ttsLastFullTextLen = text.length;
-            let resumeFrom = 0;
-            if (ttsResumePageNum === pageNum && ttsResumeCharOffset > 0 && ttsResumeCharOffset < text.length) {
-                resumeFrom = ttsResumeCharOffset;
-            }
-            const speakText = text.slice(resumeFrom);
-            if (!speakText.trim()) {
+                pageNum += 1;
+                await renderPage(pageNum, true);
+                await speakCurrentPage();
+            } else {
                 resetTtsBookmark();
                 speakLock = false;
                 btn.textContent = '🔊 Ouvir';
                 btn.className = 'btn btn-tts';
-                updateTtsButtonLabel();
-                return;
-            }
-
-            const utteranceCharOffset = resumeFrom;
-            ttsAbsCharEnd = resumeFrom;
-
-            ttsCharRanges = ranges;
-            fullPageText = text;
-            if (syncPanelEnabled()) {
-                ttsLiveText.textContent = text;
-                ttsPanel.classList.remove('hidden');
-            } else {
-                ttsLiveText.textContent = '';
                 ttsPanel.classList.add('hidden');
-            }
-
-            const utterance = new SpeechSynthesisUtterance(speakText);
-            currentUtterance = utterance;
-            const voice = getSelectedVoice();
-            if (voice) {
-                utterance.voice = voice;
-                utterance.lang = voice.lang || 'pt-BR';
-            } else {
-                utterance.lang = 'pt-BR';
-            }
-            utterance.rate = Number(rateRange.value);
-
-            utterance.onstart = () => {
-                if (currentUtterance !== utterance) return;
-                ttsAbsCharEnd = utteranceCharOffset;
-                isReading = true;
-                speakLock = false;
-                btn.textContent = '⏹ Parar';
-                btn.className = 'btn btn-stop';
-            };
-
-            utterance.onboundary = (ev) => {
-                if (currentUtterance !== utterance) return;
-                if (ev.charIndex === undefined) return;
-                const cl = ev.charLength || 1;
-                ttsAbsCharEnd = utteranceCharOffset + ev.charIndex + cl;
-                updateHighlight(utteranceCharOffset + ev.charIndex, cl);
-            };
-
-            utterance.onend = async () => {
-                if (currentUtterance !== utterance) return;
-                const continuous = document.getElementById('continuous-read').checked;
-                const hasNext = pageNum < pdfDoc.numPages;
-                isReading = false;
-                currentUtterance = null;
-                ttsAbsCharEnd = text.length;
-
-                if (continuous && hasNext) {
-                    resetTtsBookmark();
-                    pageNum += 1;
-                    await renderPage(pageNum, true);
-                    await speakCurrentPage();
-                } else {
-                    resetTtsBookmark();
-                    speakLock = false;
-                    btn.textContent = '🔊 Ouvir';
-                    btn.className = 'btn btn-tts';
-                    ttsPanel.classList.add('hidden');
-                    updateTtsButtonLabel();
-                }
-            };
-
-            utterance.onerror = (ev) => {
-                const code = (ev && ev.error) ? String(ev.error).toLowerCase() : '';
-                if (code === 'interrupted' || code === 'canceled' || code === 'cancelled') {
-                    return;
-                }
-                console.warn(ev);
-                alert('Erro na síntese de voz: ' + (ev.error || 'desconhecido'));
-                stopTTS();
-            };
-
-            if (ttsStopRequested) {
-                speakLock = false;
-                btn.textContent = '🔊 Ouvir';
-                btn.className = 'btn btn-tts';
                 updateTtsButtonLabel();
-                return;
             }
+        };
 
-            synth.speak(utterance);
+        utterance.onerror = (ev) => {
+            _clearTtsWatchdog();
+            const code = (ev && ev.error) ? String(ev.error).toLowerCase() : '';
+            const isSilent = code === 'interrupted' || code === 'canceled' || code === 'cancelled';
+            if (isSilent && isReading) return;
+            if (!isSilent) {
+                console.warn('TTS onerror:', ev.error);
+                if (code !== 'not-allowed') alert('Erro na síntese de voz: ' + (ev.error || 'desconhecido'));
+            }
+            stopTTS();
+        };
+
+        /* Workaround Chrome HTTPS: o browser às vezes pausa o speechSynthesis
+           silenciosamente; resume() antes de speak() desbloqueia. */
+        if (synth.paused) synth.resume();
+
+        /* Watchdog: se onstart não disparar em 3 s, Chrome bloqueou silenciosamente. */
+        _clearTtsWatchdog();
+        ttsWatchdogTimer = setTimeout(() => {
+            ttsWatchdogTimer = null;
+            if (currentUtterance === utterance && !isReading) {
+                console.warn('TTS watchdog: onstart nunca disparou — Chrome pode ter bloqueado speak() em HTTPS.');
+                stopTTS();
+            }
+        }, 3000);
+
+        synth.speak(utterance);
+    }
+
+    /* Versão async: usada em leitura contínua (onend → próxima página),
+       onde não existe gesto direto do utilizador. */
+    async function speakCurrentPage() {
+        if (speakLock) return;
+        if (!pdfDoc) return;
+
+        /* Usar cache se disponível; caso contrário, extrair com await. */
+        if (ttsPageCache.pageNum === pageNum && ttsPageCache.text && ttsPageCache.text.trim()) {
+            _executeSpeech(ttsPageCache.text, ttsPageCache.ranges || []);
+            return;
+        }
+        try {
+            const page = await pdfDoc.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            const built = buildTtsTextAndRanges(textContent.items || []);
+            ttsPageCache = { pageNum, text: built.text, ranges: built.ranges };
+            _executeSpeech(built.text, built.ranges);
         } catch (e) {
             console.error(e);
-            alert('Erro na leitura de voz.');
+            alert('Erro ao extrair texto da página.');
             stopTTS();
         }
     }
 
-    async function toggleTTS() {
+    /* toggleTTS é SÍNCRONA — obrigatório para Chrome em HTTPS reconhecer o gesto
+       do utilizador e não bloquear speechSynthesis.speak(). */
+    function toggleTTS() {
         if (isReading) {
             pauseTTS();
-        } else if (speakLock) {
+            return;
+        }
+        if (speakLock) {
+            _clearTtsWatchdog();
             ttsStopRequested = true;
             speakLock = false;
             const btn = document.getElementById('btn-tts');
             btn.textContent = '🔊 Ouvir';
             btn.className = 'btn btn-tts';
             updateTtsButtonLabel();
-        } else {
-            await speakCurrentPage();
+            return;
         }
+        if (!pdfDoc || isRendering) return;
+
+        /* Caminho síncrono direto — usa cache já populada em renderPage. */
+        if (ttsPageCache.pageNum === pageNum && ttsPageCache.text && ttsPageCache.text.trim()) {
+            _executeSpeech(ttsPageCache.text, ttsPageCache.ranges || []);
+            return;
+        }
+
+        /* Cache não disponível (caso improvável com botão desativado durante render).
+           Mostrar indicador e extrair de forma assíncrona — pode não funcionar em
+           Chrome HTTPS sem gesto, mas é o fallback. */
+        const btn = document.getElementById('btn-tts');
+        btn.textContent = '⌛ extraindo...';
+        speakLock = true;
+        const targetPage = pageNum;
+        pdfDoc.getPage(targetPage).then(pg => pg.getTextContent()).then(tc => {
+            const built = buildTtsTextAndRanges(tc.items || []);
+            ttsPageCache = { pageNum: targetPage, text: built.text, ranges: built.ranges };
+            speakLock = false;
+            if (pageNum === targetPage && !isReading) _executeSpeech(built.text, built.ranges);
+            else { btn.textContent = '🔊 Ouvir'; btn.className = 'btn btn-tts'; updateTtsButtonLabel(); }
+        }).catch(e => {
+            console.error(e);
+            speakLock = false;
+            btn.textContent = '🔊 Ouvir';
+            btn.className = 'btn btn-tts';
+            updateTtsButtonLabel();
+        });
     }
 
     document.addEventListener('keydown', (e) => {
