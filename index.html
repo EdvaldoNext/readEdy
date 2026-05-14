@@ -53,6 +53,8 @@
         .btn-ghost { background: rgba(255,255,255,0.12); color: white; }
         .btn-tts { background: #27ae60; color: white; min-width: 100px; }
         .btn-stop { background: #e74c3c; color: white; }
+        .btn-tts:disabled,
+        .btn-stop:disabled { opacity: 0.45; cursor: not-allowed; }
         .hidden { display: none !important; }
         #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.75); color: white; padding: 20px; border-radius: 10px; z-index: 2000; }
         .sr-hint { font-size: 0.7rem; opacity: 0.75; width: 100%; text-align: center; }
@@ -180,6 +182,8 @@
     const LS_RESUME_CLOUD = 'readera-resume-cloud';
     const LS_LAST_CLOUD_DOC = 'readera_last_cloud_doc_id';
     let ttsCharRanges = [];
+    /** Texto/ranges da página visível, preenchido em renderPage — evita await antes de synth.speak (Chrome em HTTPS exige gesto do utilizador). */
+    let ttsPageCache = { pageNum: null, text: '', ranges: [] };
     let pdfTextLayerSpans = null;
     let ttsResumeCharOffset = 0;
     let ttsResumePageNum = null;
@@ -806,10 +810,14 @@
     async function renderPage(num, skipStopTts) {
         if (isReading && !skipStopTts) stopTTS();
         isRendering = true;
+        ttsPageCache = { pageNum: null, text: '', ranges: [] };
+        const btnTts = document.getElementById('btn-tts');
+        if (btnTts) btnTts.disabled = true;
         clearPdfHighlight();
         ttsCharRanges = [];
         pdfTextLayerSpans = null;
 
+        try {
         const page = await pdfDoc.getPage(num);
         const viewer = document.getElementById('viewer-container');
         const rect = viewer.getBoundingClientRect();
@@ -863,13 +871,18 @@
 
         const textContent = await page.getTextContent();
         pdfTextLayerSpans = buildPdfTextLayer(viewport, textContent, textLayer);
+        const ttsBuilt = buildTtsTextAndRanges(textContent.items || []);
+        ttsPageCache = { pageNum: num, text: ttsBuilt.text, ranges: ttsBuilt.ranges };
 
         document.getElementById('page-info').textContent = num + ' / ' + pdfDoc.numPages;
-        isRendering = false;
         document.getElementById('viewer-container').scrollTop = 0;
         scheduleCloudProgress();
         updateTtsButtonLabel();
         syncPageJumpInput();
+        } finally {
+            isRendering = false;
+            if (btnTts) btnTts.disabled = false;
+        }
     }
 
     function syncPageJumpInput() {
@@ -973,16 +986,28 @@
 
     async function speakCurrentPage() {
         if (speakLock) return;
+        if (!pdfDoc || isRendering) return;
         speakLock = true;
         ttsStopRequested = false;
         const btn = document.getElementById('btn-tts');
         btn.textContent = '⌛ extraindo...';
 
         try {
-            const page = await pdfDoc.getPage(pageNum);
-            const textContent = await page.getTextContent();
-            const items = textContent.items || [];
-            const { text, ranges } = buildTtsTextAndRanges(items);
+            let text;
+            let ranges;
+            const cacheOk = ttsPageCache.pageNum === pageNum && typeof ttsPageCache.text === 'string';
+            if (cacheOk) {
+                text = ttsPageCache.text;
+                ranges = ttsPageCache.ranges || [];
+            } else {
+                const page = await pdfDoc.getPage(pageNum);
+                const textContent = await page.getTextContent();
+                const items = textContent.items || [];
+                const built = buildTtsTextAndRanges(items);
+                text = built.text;
+                ranges = built.ranges;
+                ttsPageCache = { pageNum: pageNum, text: text, ranges: ranges };
+            }
 
             if (ttsStopRequested) {
                 speakLock = false;
