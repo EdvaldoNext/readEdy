@@ -1074,31 +1074,16 @@ const safeStorage = (function() {
     }
 
     async function openCloudDocumentFromRow(row, resetSelectValue) {
-        /* Estratégia: criar Signed URL (sem auth no download) → baixar via XHR.
-           XHR é mais compatível que fetch em TVs antigas e evita problemas de CORS
-           com preflight em WebKit desatualizado.
-           Tentativa 1: supabase-js createSignedUrl → download XHR
-           Tentativa 2 (fallback): createSignedUrl via XHR direto → download XHR */
-        let signedUrl;
-        try {
-            const { data: signedData, error: signErr } = await readeraSb.storage
-                .from('pdfs')
-                .createSignedUrl(row.storage_path, 300);
-            if (signErr) throw signErr;
-            if (!signedData || !signedData.signedUrl) throw new Error('URL vazia');
-            signedUrl = signedData.signedUrl;
-        } catch (e1) {
-            console.warn('[Cloud] createSignedUrl via supabase-js falhou, tentando XHR direto:', e1);
-            try {
-                signedUrl = await _createSignedUrlXhr('pdfs', row.storage_path, 300);
-            } catch (e2) {
-                throw new Error('Não foi possível criar URL de download: ' + (e2.message || e2));
-            }
-        }
-        /* Download sempre via XHR — sem headers custom, sem preflight */
+        /* Bucket 'pdfs' é PÚBLICO → getPublicUrl() é SÍNCRONO (zero chamada de rede,
+           zero CORS, funciona em qualquer browser/TV).
+           O download usa XHR GET simples — sem headers custom, sem preflight. */
+        const { data: pubData } = readeraSb.storage.from('pdfs').getPublicUrl(row.storage_path);
+        const publicUrl = pubData && pubData.publicUrl;
+        if (!publicUrl) throw new Error('Não foi possível construir URL pública do arquivo');
+
         let buf;
         try {
-            buf = await _downloadArrayBufferXhr(signedUrl);
+            buf = await _downloadArrayBufferXhr(publicUrl);
         } catch (eDl) {
             throw new Error('Download do PDF falhou: ' + (eDl.message || eDl));
         }
