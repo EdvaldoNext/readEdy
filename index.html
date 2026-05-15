@@ -298,6 +298,7 @@ const safeStorage = (function() {
     let ttsAudioObjUrl  = null;
     let ttsAudioCache   = { pageNum: null, blob: null, loading: false, error: false };
     let ttsPreFetchCtrl = null; /* AbortController do prefetch em curso */
+    let _audioUnlocked  = false; /* true após unlock por gesto do utilizador */
     let _wsSynth = typeof window.speechSynthesis !== 'undefined' ? window.speechSynthesis : null;
     let readeraSb = null;
     let pdfCacheBytes = null;
@@ -361,6 +362,57 @@ const safeStorage = (function() {
         { key: 'de-DE-KatjaNeural',     label: 'Katja – de-DE (Neural)'     },
         { key: 'it-IT-ElsaNeural',      label: 'Elsa – it-IT (Neural)'      },
     ];
+
+    /* ── Audio Unlock (TV / iOS / Mobile) ───────────────────────
+       TVs exigem que audio.play() tenha sido chamado dentro de um
+       gesto do utilizador.  Esta função cria um silêncio de 0.1 s
+       e "desbloqueia" o elemento <audio> na primeira interação.
+       Depois disso, todos os play() seguintes funcionam livremente.
+       ──────────────────────────────────────────────────────────── */
+    function _createSilentBlobUrl() {
+        /* WAV mínimo: 0.1 s, mono, 8 kHz, 8-bit unsigned PCM */
+        const RATE = 8000, N = 800;
+        const buf = new ArrayBuffer(44 + N);
+        const v   = new DataView(buf);
+        const ws  = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+        ws(0,  'RIFF'); v.setUint32(4,  36 + N, true); ws(8, 'WAVE');
+        ws(12, 'fmt '); v.setUint32(16, 16,     true); v.setUint16(20, 1,     true);
+        v.setUint16(22, 1, true); v.setUint32(24, RATE, true); v.setUint32(28, RATE, true);
+        v.setUint16(32, 1, true); v.setUint16(34, 8,    true);
+        ws(36, 'data'); v.setUint32(40, N, true);
+        for (let i = 44; i < 44 + N; i++) v.setUint8(i, 128); /* silêncio em PCM 8-bit */
+        return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+    }
+
+    function _unlockAudio() {
+        if (_audioUnlocked) return;
+        /* Desbloquear AudioContext (webkitAudioContext em TVs antigas) */
+        try {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (AC) { const ctx = new AC(); ctx.resume().catch(() => {}); setTimeout(() => { try { ctx.close(); } catch(e) {} }, 1500); }
+        } catch(e) {}
+        /* Usar elemento TEMPORÁRIO separado — nunca toca em ttsAudioEl aqui */
+        try {
+            const tmp = document.createElement('audio');
+            const silentUrl = _createSilentBlobUrl();
+            tmp.src = silentUrl;
+            tmp.volume = 0;
+            const p = tmp.play();
+            const cleanup = () => { try { tmp.pause(); tmp.src = ''; URL.revokeObjectURL(silentUrl); } catch(e) {} };
+            if (p && typeof p.then === 'function') {
+                p.then(() => { cleanup(); _audioUnlocked = true; console.log('[TTS] Áudio desbloqueado.'); })
+                 .catch(() => { cleanup(); });
+            } else {
+                cleanup(); _audioUnlocked = true;
+            }
+        } catch(e) { console.warn('[TTS unlock]', e); }
+    }
+
+    /* Desbloquear na primeira interação com a página (qualquer clique) */
+    document.addEventListener('click', function _firstClick() {
+        _unlockAudio();
+        document.removeEventListener('click', _firstClick);
+    });
 
     /* Chamada após initSupabaseClient() determinar a config disponível */
     function initTtsEngine() {
@@ -446,7 +498,15 @@ const safeStorage = (function() {
         ttsAudioCache = { pageNum: num, blob: null, loading: true, error: false };
         try {
             const blob = await _fetchTtsBlob(text, voiceSelect ? voiceSelect.value : 'pt-BR-FranciscaNeural', Number(rateRange.value), ctrl ? ctrl.signal : null);
-            if (ttsAudioCache.pageNum === num) ttsAudioCache = { pageNum: num, blob, loading: false, error: false };
+            if (ttsAudioCache.pageNum !== num) return; // página mudou durante o fetch
+            ttsAudioCache = { pageNum: num, blob, loading: false, error: false };
+            /* Pré-carregar o src no elemento <audio> enquanto não há gesto pendente.
+               Definir src + load() não requer gesto. Apenas play() requer. */
+            if (!ttsAudioEl) { ttsAudioEl = document.createElement('audio'); ttsAudioEl.preload = 'auto'; document.body.appendChild(ttsAudioEl); }
+            if (ttsAudioObjUrl) { try { URL.revokeObjectURL(ttsAudioObjUrl); } catch(e) {} }
+            ttsAudioObjUrl = URL.createObjectURL(blob);
+            ttsAudioEl.src = ttsAudioObjUrl;
+            try { ttsAudioEl.load(); } catch(e) {}
         } catch (e) {
             if (e && e.name === 'AbortError') return;
             console.warn('[TTS proxy] prefetch:', e);
@@ -475,9 +535,21 @@ const safeStorage = (function() {
     /* Toca um blob MP3 e gerencia todo o ciclo de vida do áudio */
     function _playAudioBlob(blob) {
         if (!blob) { showTtsToast('Áudio não disponível.'); return; }
-        if (ttsAudioObjUrl) { URL.revokeObjectURL(ttsAudioObjUrl); ttsAudioObjUrl = null; }
-        ttsAudioObjUrl = URL.createObjectURL(blob);
-        if (!ttsAudioEl) { ttsAudioEl = document.createElement('audio'); ttsAudioEl.preload = 'auto'; }
+
+        /* Criar elemento se ainda não existe */
+        if (!ttsAudioEl) { ttsAudioEl = document.createElement('audio'); ttsAudioEl.preload = 'auto'; document.body.appendChild(ttsAudioEl); }
+
+        /* Só trocar src se ainda não foi pré-carregado pelo prefetch.
+           Trocar src cancela o buffer e pode acionar restrição de gesto no TV. */
+        const blobUrlForThisBlob = ttsAudioObjUrl;
+        const srcAlreadySet = ttsAudioEl.src && ttsAudioEl.src === blobUrlForThisBlob;
+        if (!srcAlreadySet) {
+            if (ttsAudioObjUrl) { try { URL.revokeObjectURL(ttsAudioObjUrl); } catch(e) {} ttsAudioObjUrl = null; }
+            ttsAudioObjUrl = URL.createObjectURL(blob);
+            ttsAudioEl.src = ttsAudioObjUrl;
+            try { ttsAudioEl.load(); } catch(e) {}
+        }
+
         ttsAudioEl.ontimeupdate = null; ttsAudioEl.onended = null;
         ttsAudioEl.onerror = null; ttsAudioEl.onplay = null;
 
@@ -496,8 +568,6 @@ const safeStorage = (function() {
             ttsLiveText.textContent = capturedText;
             ttsPanel.classList.remove('hidden');
         }
-
-        ttsAudioEl.src = ttsAudioObjUrl;
 
         ttsAudioEl.ontimeupdate = () => {
             if (!isReading || ttsAudioEl.duration <= 0) return;
@@ -548,11 +618,13 @@ const safeStorage = (function() {
         };
 
         const pp = ttsAudioEl.play();
-        if (pp && typeof pp.catch === 'function') {
+        if (pp && typeof pp.then === 'function') {
             pp.catch(err => {
                 console.warn('[TTS] play() bloqueado:', err);
                 stopTTS();
-                showTtsToast('Toque em Ouvir para iniciar (requer interação com a página).');
+                /* Resetar flag de unlock para tentar novamente */
+                _audioUnlocked = false;
+                showTtsToast('Toque em Ouvir novamente para iniciar.');
             });
         }
     }
@@ -1416,6 +1488,8 @@ const safeStorage = (function() {
 
     /* toggleTTS — SÍNCRONA para Chrome HTTPS respeitar gesto do utilizador */
     function toggleTTS() {
+        /* Desbloquear áudio a cada clique (garante unlock mesmo se primeiro clique foi noutro elemento) */
+        _unlockAudio();
         if (isReading) { pauseTTS(); return; }
         if (speakLock) {
             _clearTtsWatchdog();
@@ -1431,7 +1505,9 @@ const safeStorage = (function() {
             if (ttsAudioCache.pageNum === pageNum && ttsAudioCache.blob) {
                 _playAudioBlob(ttsAudioCache.blob); return;
             }
-            /* Prefetch ainda em curso (iniciado ao renderizar a página) */
+            /* Prefetch ainda em curso (iniciado ao renderizar a página).
+               Aguardamos num loop leve — o elemento já foi desbloqueado por _unlockAudio()
+               acima, portanto o play() posterior (mesmo assíncrono) será aceite. */
             if (ttsAudioCache.pageNum === pageNum && ttsAudioCache.loading) {
                 showTtsToast('Preparando voz neural…');
                 const btn = document.getElementById('btn-tts');
