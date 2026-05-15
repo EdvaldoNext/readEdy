@@ -103,6 +103,10 @@
 <body>
 
 <div id="loading" class="hidden">Carregando PDF...</div>
+<div id="app-notification" style="display:none; position:fixed; top:0; left:0; right:0; z-index:9998; padding:14px 18px 14px max(18px,env(safe-area-inset-left,0px)); font-size:0.92rem; line-height:1.5; box-shadow:0 2px 10px rgba(0,0,0,0.4); color:#fff; align-items:flex-start; gap:12px; cursor:pointer;" onclick="this.style.display='none'" aria-live="assertive">
+    <span id="app-notification-text" style="flex:1;"></span>
+    <span style="flex-shrink:0; opacity:0.8; font-size:1.1rem;">✕</span>
+</div>
 <div id="cdn-error-banner" style="display:none; position:fixed; top:0; left:0; right:0; z-index:9999; background:#c0392b; color:#fff; padding:14px 18px; font-size:0.92rem; line-height:1.5; box-shadow:0 2px 10px rgba(0,0,0,0.4);">
     <b>⚠️ Erro ao carregar bibliotecas externas.</b>
     Uma extensão do Chrome (bloqueador de anúncios, Privacy Badger, uBlock Origin, etc.) está a bloquear os ficheiros necessários para a aplicação funcionar.<br>
@@ -892,7 +896,7 @@ const safeStorage = (function() {
             badge.textContent = 'Nuvem: erro (consola)';
             badge.title = msg ? msg.slice(0, 200) : '';
             console.error(err);
-            alert('Nuvem: falhou ao ligar. Confira config.js, rede e aplique a migração readera_anon_no_login no Supabase.\n\n' + msg.slice(0, 180));
+            showNotification('Nuvem: falhou ao ligar. Confira config.js e rede. ' + msg.slice(0, 120));
         }
     } finally {
         updateCloudPrefsVisibility();
@@ -949,16 +953,28 @@ const safeStorage = (function() {
             await openCloudDocumentFromRow(row, true);
         } catch (err) {
             console.error(err);
-            alert('Não foi possível abrir da nuvem: ' + (err.message || err));
+            /* Usar toast em vez de alert() — evita o diálogo do sistema na TV */
+            showTtsToast('Erro ao abrir da nuvem: ' + (err.message || String(err)).slice(0, 80));
         } finally {
             loading.classList.add('hidden');
         }
     }
 
     async function openCloudDocumentFromRow(row, resetSelectValue) {
-        const { data: blob, error: derr } = await readeraSb.storage.from('pdfs').download(row.storage_path);
-        if (derr || !blob) throw derr || new Error('Download falhou');
-        const buf = await blob.arrayBuffer();
+        /* Usar Signed URL para o download:
+           - Não envia header Authorization → sem CORS preflight
+           - Funciona em TVs com WebKit antigo e em browsers restritivos
+           - URL válida por 5 minutos (mais que suficiente para o download) */
+        const { data: signedData, error: signErr } = await readeraSb.storage
+            .from('pdfs')
+            .createSignedUrl(row.storage_path, 300); /* 300 s = 5 min */
+        if (signErr || !signedData || !signedData.signedUrl) {
+            throw signErr || new Error('Não foi possível criar URL de download');
+        }
+        /* Fetch simples com GET — sem headers custom, sem preflight */
+        const res = await fetch(signedData.signedUrl);
+        if (!res.ok) throw new Error('Download falhou: HTTP ' + res.status);
+        const buf = await res.arrayBuffer();
         lastOpenedFileName = row.title || 'documento.pdf';
         await loadPdfFromArrayBuffer(buf, { documentId: row.id, initialPage: row.last_page || 1 });
         if (resetSelectValue) {
@@ -1012,7 +1028,7 @@ const safeStorage = (function() {
         persistLastCloudDocId(ins.id);
         await refreshCloudLibrary();
         updateCloudChrome();
-        if (!silent) alert('PDF guardado na nuvem.');
+        if (!silent) showNotification('PDF guardado na nuvem.', false);
         return ins;
     }
 
@@ -1024,7 +1040,7 @@ const safeStorage = (function() {
             await uploadPdfToCloudInternal(false);
         } catch (err) {
             console.error(err);
-            alert('Erro ao guardar na nuvem: ' + (err.message || err));
+            showNotification('Erro ao guardar na nuvem: ' + (err.message || err));
         } finally {
             loading.classList.add('hidden');
         }
@@ -1048,10 +1064,10 @@ const safeStorage = (function() {
             stopTTS({ resetBookmark: true });
             await refreshCloudLibrary();
             updateCloudChrome();
-            alert('PDF removido da nuvem.');
+            showNotification('PDF removido da nuvem.', false);
         } catch (err) {
             console.error(err);
-            alert('Erro ao apagar na nuvem: ' + (err.message || err));
+            showNotification('Erro ao apagar na nuvem: ' + (err.message || err));
         } finally {
             loading.classList.add('hidden');
         }
@@ -1082,7 +1098,7 @@ const safeStorage = (function() {
 
     async function loadPdfFromArrayBuffer(arrayBuffer, opts) {
         if (!pdfjsLib) {
-            alert('PDF.js não está disponível. Verifique a ligação ou extensões do navegador.');
+            showNotification('PDF.js não está disponível. Verifique a ligação ou extensões do navegador.');
             return;
         }
         loading.classList.remove('hidden');
@@ -1104,7 +1120,7 @@ const safeStorage = (function() {
                 void attemptAutoCloudSync();
             }
         } catch (err) {
-            alert('Erro ao abrir PDF: ' + err.message);
+            showNotification('Erro ao abrir PDF: ' + (err.message || err));
         } finally {
             loading.classList.add('hidden');
         }
@@ -1223,12 +1239,12 @@ const safeStorage = (function() {
         if (!pdfDoc || isRendering) return;
         const n = Math.floor(Number(target));
         if (!Number.isFinite(n)) {
-            alert('Digite um número de página válido.');
+            showTtsToast('Digite um número de página válido.');
             syncPageJumpInput();
             return;
         }
         if (n < 1 || n > pdfDoc.numPages) {
-            alert('Página fora do intervalo. Este PDF tem ' + pdfDoc.numPages + ' páginas (1 a ' + pdfDoc.numPages + ').');
+            showTtsToast('Fora do intervalo: 1 a ' + pdfDoc.numPages + ' páginas.');
             syncPageJumpInput();
             return;
         }
@@ -1332,6 +1348,20 @@ const safeStorage = (function() {
         el.classList.add('visible');
         clearTimeout(_toastTimer);
         _toastTimer = setTimeout(() => el.classList.remove('visible'), 2800);
+    }
+
+    /* Notificação não-bloqueante (substitui alert() — funciona em TVs) */
+    let _notifTimer = null;
+    function showNotification(msg, isError) {
+        const el = document.getElementById('app-notification');
+        const txt = document.getElementById('app-notification-text');
+        if (!el || !txt) { console.warn('[notify]', msg); return; }
+        txt.textContent = msg;
+        el.style.background = isError === false ? '#27ae60' : '#c0392b';
+        el.style.display = 'flex';
+        clearTimeout(_notifTimer);
+        /* Auto-fechar após 6 s para erros, 3 s para sucesso */
+        _notifTimer = setTimeout(() => { el.style.display = 'none'; }, isError === false ? 3000 : 6000);
     }
 
     /* ── speakCurrentPage: usa o motor TTS correto ──────────── */
