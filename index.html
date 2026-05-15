@@ -216,6 +216,47 @@ if (typeof window.fetch === 'undefined') {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   XHR HELPERS — usados para download de PDFs da nuvem.
+   Mais compatível com TVs que têm restrições CORS no fetch nativo.
+   ══════════════════════════════════════════════════════════════ */
+function _xhrRequest(method, url, headers, body, responseType) {
+    return new Promise(function(resolve, reject) {
+        var xhr = new XMLHttpRequest();
+        xhr.open(method, url, true);
+        if (responseType) xhr.responseType = responseType;
+        if (headers) {
+            Object.keys(headers).forEach(function(k) { try { xhr.setRequestHeader(k, headers[k]); } catch(e) {} });
+        }
+        xhr.timeout = 30000;
+        xhr.onload = function() {
+            if (xhr.status >= 200 && xhr.status < 300) { resolve(xhr.response); }
+            else { reject(new Error('HTTP ' + xhr.status)); }
+        };
+        xhr.onerror   = function() { reject(new Error('Erro de rede (XHR)')); };
+        xhr.ontimeout = function() { reject(new Error('Timeout ao baixar')); };
+        xhr.send(body || null);
+    });
+}
+function _createSignedUrlXhr(bucket, storagePath, expiresIn) {
+    var cfg = window.READERA_SUPABASE || {};
+    var baseUrl = (cfg.url || '').replace(/\/$/, '');
+    var endpoint = baseUrl + '/storage/v1/object/sign/' + bucket + '/' + storagePath;
+    return _xhrRequest('POST', endpoint,
+        { 'Authorization': 'Bearer ' + cfg.anonKey, 'apikey': cfg.anonKey, 'Content-Type': 'application/json' },
+        JSON.stringify({ expiresIn: expiresIn || 300 }),
+        '' /* text */
+    ).then(function(text) {
+        var obj = JSON.parse(text);
+        var signed = obj.signedURL || obj.signedUrl || obj.signed_url || '';
+        if (!signed) throw new Error('URL assinada vazia na resposta');
+        return signed.startsWith('/') ? baseUrl + signed : signed;
+    });
+}
+function _downloadArrayBufferXhr(url) {
+    return _xhrRequest('GET', url, {}, null, 'arraybuffer');
+}
+
+/* ═══════════════════════════════════════════════════════════════
    SAFE STORAGE: localStorage → sessionStorage → memória (TV safe)
    ══════════════════════════════════════════════════════════════ */
 const safeStorage = (function() {
@@ -1033,20 +1074,34 @@ const safeStorage = (function() {
     }
 
     async function openCloudDocumentFromRow(row, resetSelectValue) {
-        /* Usar Signed URL para o download:
-           - Não envia header Authorization → sem CORS preflight
-           - Funciona em TVs com WebKit antigo e em browsers restritivos
-           - URL válida por 5 minutos (mais que suficiente para o download) */
-        const { data: signedData, error: signErr } = await readeraSb.storage
-            .from('pdfs')
-            .createSignedUrl(row.storage_path, 300); /* 300 s = 5 min */
-        if (signErr || !signedData || !signedData.signedUrl) {
-            throw signErr || new Error('Não foi possível criar URL de download');
+        /* Estratégia: criar Signed URL (sem auth no download) → baixar via XHR.
+           XHR é mais compatível que fetch em TVs antigas e evita problemas de CORS
+           com preflight em WebKit desatualizado.
+           Tentativa 1: supabase-js createSignedUrl → download XHR
+           Tentativa 2 (fallback): createSignedUrl via XHR direto → download XHR */
+        let signedUrl;
+        try {
+            const { data: signedData, error: signErr } = await readeraSb.storage
+                .from('pdfs')
+                .createSignedUrl(row.storage_path, 300);
+            if (signErr) throw signErr;
+            if (!signedData || !signedData.signedUrl) throw new Error('URL vazia');
+            signedUrl = signedData.signedUrl;
+        } catch (e1) {
+            console.warn('[Cloud] createSignedUrl via supabase-js falhou, tentando XHR direto:', e1);
+            try {
+                signedUrl = await _createSignedUrlXhr('pdfs', row.storage_path, 300);
+            } catch (e2) {
+                throw new Error('Não foi possível criar URL de download: ' + (e2.message || e2));
+            }
         }
-        /* Fetch simples com GET — sem headers custom, sem preflight */
-        const res = await fetch(signedData.signedUrl);
-        if (!res.ok) throw new Error('Download falhou: HTTP ' + res.status);
-        const buf = await res.arrayBuffer();
+        /* Download sempre via XHR — sem headers custom, sem preflight */
+        let buf;
+        try {
+            buf = await _downloadArrayBufferXhr(signedUrl);
+        } catch (eDl) {
+            throw new Error('Download do PDF falhou: ' + (eDl.message || eDl));
+        }
         lastOpenedFileName = row.title || 'documento.pdf';
         await loadPdfFromArrayBuffer(buf, { documentId: row.id, initialPage: row.last_page || 1 });
         if (resetSelectValue) {
