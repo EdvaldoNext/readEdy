@@ -13,7 +13,7 @@ const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
 Deno.serve(async (req: Request) => {
@@ -22,15 +22,24 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { headers: CORS });
   }
 
-  if (req.method !== "POST") {
-    return new Response("Method Not Allowed", { status: 405, headers: CORS });
-  }
+  let text = "", voice = "pt-BR-FranciscaNeural", rate = 1.0;
 
   try {
-    const body = await req.json();
-    const text = String(body.text ?? "").trim();
-    const voice = String(body.voice ?? "pt-BR-FranciscaNeural");
-    const rate = Math.max(0.25, Math.min(3.0, Number(body.rate) || 1.0));
+    if (req.method === "GET") {
+      /* Suporte a GET para permitir uso direto em <audio src="...">       */
+      /* sem necessidade de headers customizados (compat. Smart TV)        */
+      const url = new URL(req.url);
+      text  = (url.searchParams.get("text")  || "").trim();
+      voice =  url.searchParams.get("voice") || "pt-BR-FranciscaNeural";
+      rate  = Math.max(0.25, Math.min(3.0, Number(url.searchParams.get("rate") || "1.0")));
+    } else if (req.method === "POST") {
+      const body = await req.json();
+      text  = String(body.text  ?? "").trim();
+      voice = String(body.voice ?? "pt-BR-FranciscaNeural");
+      rate  = Math.max(0.25, Math.min(3.0, Number(body.rate) || 1.0));
+    } else {
+      return new Response("Method Not Allowed", { status: 405, headers: CORS });
+    }
 
     if (!text) {
       return new Response(JSON.stringify({ error: "text is required" }), {
