@@ -16,8 +16,57 @@
     <style>
         :root { --primary: #2c3e50; --bg: #f4f4f4; --text: #333; --panel: #fff; --accent: #3498db; --highlight: #fff3cd; --read-surface: #ece8e0; --read-page: #faf8f4; }
         body.dark { --primary: #1a1a1a; --bg: #121212; --text: #eee; --panel: #1e1e1e; --accent: #5dade2; --highlight: #4a3f1a; --read-surface: #0d0d0d; --read-page: #141414; }
-        html { -webkit-text-size-adjust: 100%; width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; position: fixed; top: 0; left: 0; }
-        body { font-family: system-ui, -apple-system, Segoe UI, sans-serif; margin: 0; padding: 0; background: var(--bg); color: var(--text); width: 100%; height: 100%; position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: -webkit-box; display: -webkit-flex; display: -ms-flexbox; display: flex; -webkit-box-orient: vertical; -webkit-box-direction: normal; -webkit-flex-direction: column; -ms-flex-direction: column; flex-direction: column; overflow: hidden; box-sizing: border-box; }
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            overflow: hidden !important;
+            position: fixed !important;
+            top: 0;
+            left: 0;
+        }
+        html { -webkit-text-size-adjust: 100%; }
+        body { font-family: system-ui, -apple-system, Segoe UI, sans-serif; background: var(--bg); color: var(--text); display: -webkit-box; display: -webkit-flex; display: -ms-flexbox; display: flex; -webkit-box-orient: vertical; -webkit-box-direction: normal; -webkit-flex-direction: column; -ms-flex-direction: column; flex-direction: column; box-sizing: border-box; }
+        #app-container {
+            display: -webkit-box !important;
+            display: -webkit-flex !important;
+            display: -ms-flexbox !important;
+            display: flex !important;
+            width: 100% !important;
+            height: 100% !important;
+            overflow: hidden !important;
+            -webkit-box-orient: vertical;
+            -webkit-box-direction: normal;
+            -webkit-flex-direction: column;
+            -ms-flex-direction: column;
+            flex-direction: column;
+            -webkit-box-flex: 1;
+            -webkit-flex: 1;
+            -ms-flex: 1;
+            flex: 1;
+            min-height: 0;
+        }
+        #main-container, .pdf-viewer-area, #viewer-container {
+            -webkit-box-flex: 1 !important;
+            -webkit-flex: 1 !important;
+            -ms-flex: 1 !important;
+            flex: 1 !important;
+            height: 100% !important;
+            display: -webkit-box !important;
+            display: -webkit-flex !important;
+            display: -ms-flexbox !important;
+            display: flex !important;
+            -webkit-box-orient: vertical;
+            -webkit-box-direction: normal;
+            -webkit-flex-direction: column;
+            -ms-flex-direction: column;
+            flex-direction: column;
+            overflow: auto !important;
+            background-color: #525659 !important;
+            min-height: 0;
+            min-width: 0;
+        }
         body.reading-mode { background: var(--read-surface); }
         body.reading-mode #viewer-container { padding-top: 22px; }
         body.reading-mode #pdf-render-area .pdf-page-wrap { box-shadow: 0 10px 44px rgba(0,0,0,0.2); border-radius: 6px; overflow: hidden; }
@@ -115,6 +164,8 @@
     <br><button onclick="document.getElementById('cdn-error-banner').style.display='none'" style="margin-top:8px; padding:4px 12px; border:none; border-radius:6px; background:rgba(255,255,255,0.2); color:#fff; cursor:pointer; font-weight:600;">✕ Fechar</button>
 </div>
 
+<div id="app-container">
+
 <header>
     <span><b>ReadEra</b> Web Pro</span>
     <div class="header-actions">
@@ -146,6 +197,7 @@
     <input type="file" id="file-input" accept="application/pdf" class="hidden">
 </header>
 
+<div id="main-container" class="pdf-viewer-area">
 <main id="viewer-container">
     <div id="welcome">
         <h2 style="text-align: center; margin-top: 50px;">Pronto para ler?</h2>
@@ -157,6 +209,7 @@
         <div id="tts-live-text"></div>
     </div>
 </main>
+</div>
 
 <div id="tts-toast" role="status" aria-live="polite"></div>
 <button type="button" id="btn-show-chrome" title="Mostrar barras de ferramentas">☰ Mostrar controles</button>
@@ -180,6 +233,8 @@
         </div>
         <p class="sr-hint">Atalhos: ← → mudam página · Espaço ouvir/parar · Ir para pág.: número + Enter ou Ir</p>
     </div>
+</div>
+
 </div>
 
 <script>
@@ -375,6 +430,8 @@ var safeStorage = (function() {
     var pdfCacheBytes = null;
     var cloudDocumentId = null;
     var lastOpenedFileName = '';
+    var currentBookTitle = '';
+    var currentPageNum = 1;
     var progressSaveTimer = null;
     var cloudUiBound = false;
     var cloudSyncInFlight = false;
@@ -609,6 +666,19 @@ var safeStorage = (function() {
         ttsAudioCache = { pageNum: num, url: url, ready: true, error: false };
     }
 
+    function updateMediaSession(tituloLivro, paginaAtual) {
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: tituloLivro || 'Lendo Livro PDF',
+                artist: 'ReadEra Web Pro',
+                album: 'Página ' + (paginaAtual || 1)
+            });
+
+            navigator.mediaSession.setActionHandler('play', function() { if (typeof toggleTTS === 'function') toggleTTS(); });
+            navigator.mediaSession.setActionHandler('pause', function() { if (typeof toggleTTS === 'function') toggleTTS(); });
+        }
+    }
+
     /* Reproduz a URL de streaming e gerencia todo o ciclo de vida do áudio */
     function _playTtsUrl(url, capturedText, capturedRanges, capturedPage) {
         if (!url) { showTtsToast('URL de áudio não disponível.'); return; }
@@ -652,6 +722,7 @@ var safeStorage = (function() {
         ttsAudioEl.onplay = function() {
             isReading = true;
             speakLock = false;
+            updateMediaSession(currentBookTitle, currentPageNum);
             var btn = document.getElementById('btn-tts');
             if (btn) { btn.textContent = '⏹ Parar'; btn.className = 'btn btn-stop'; }
         };
@@ -668,6 +739,7 @@ var safeStorage = (function() {
             if (isCont && hasNext) {
                 resetTtsBookmark(); speakLock = false;
                 pageNum += 1;
+                currentPageNum = pageNum;
                 renderPage(pageNum, true).then(function() { speakCurrentPage(); });
             } else {
                 resetTtsBookmark(); speakLock = false;
@@ -1249,6 +1321,8 @@ var safeStorage = (function() {
             document.getElementById('nav-controls').classList.remove('hidden');
             var want = opts && opts.initialPage ? opts.initialPage : 1;
             pageNum = Math.min(Math.max(1, want), pdfDoc.numPages);
+            currentPageNum = pageNum;
+            currentBookTitle = lastOpenedFileName || 'Lendo Livro PDF';
             return renderPage(pageNum);
         }).then(function() {
             updateCloudChrome();
@@ -1268,6 +1342,7 @@ var safeStorage = (function() {
         if (!file) return;
         persistLastCloudDocId(null);
         lastOpenedFileName = file.name;
+        currentBookTitle = file.name;
         var reader = new FileReader();
         reader.onload = function() {
             loadPdfFromArrayBuffer(this.result, { initialPage: 1 });
@@ -1387,6 +1462,7 @@ var safeStorage = (function() {
         if (n === pageNum) return;
         resetTtsBookmark();
         pageNum = n;
+        currentPageNum = pageNum;
         renderPage(pageNum);
     }
 
@@ -1407,6 +1483,7 @@ var safeStorage = (function() {
         if (next > 0 && next <= pdfDoc.numPages) {
             resetTtsBookmark();
             pageNum = next;
+            currentPageNum = pageNum;
             renderPage(pageNum);
         }
     }
@@ -1597,6 +1674,7 @@ var safeStorage = (function() {
             if (isCont0 && hasNext0) {
                 showTtsToast('Página sem texto — avançando...');
                 pageNum += 1;
+                currentPageNum = pageNum;
                 renderPage(pageNum, true).then(function() { speakCurrentPage(); });
             } else {
                 showTtsToast('Esta página não tem texto legível.');
@@ -1659,6 +1737,7 @@ var safeStorage = (function() {
             ttsAbsCharEnd = text.length;
             if (continuous && hasNext) {
                 resetTtsBookmark(); speakLock = false; pageNum += 1;
+                currentPageNum = pageNum;
                 renderPage(pageNum, true).then(function() { speakCurrentPage(); });
             } else {
                 resetTtsBookmark(); speakLock = false;
