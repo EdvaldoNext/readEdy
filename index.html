@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ReadEra Web Pro</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
     <link rel="apple-touch-icon" href="./favicon.svg">
@@ -16,16 +16,16 @@
     <style>
         :root { --primary: #2c3e50; --bg: #f4f4f4; --text: #333; --panel: #fff; --accent: #3498db; --highlight: #fff3cd; --read-surface: #ece8e0; --read-page: #faf8f4; }
         body.dark { --primary: #1a1a1a; --bg: #121212; --text: #eee; --panel: #1e1e1e; --accent: #5dade2; --highlight: #4a3f1a; --read-surface: #0d0d0d; --read-page: #141414; }
-        html { -webkit-text-size-adjust: 100%; width: 100%; overflow-x: hidden; }
-        body { font-family: system-ui, -apple-system, Segoe UI, sans-serif; margin: 0; background: var(--bg); color: var(--text); min-height: 100vh; min-height: 100dvh; height: 100vh; height: 100dvh; width: 100%; max-width: 100%; overflow-x: hidden; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box; padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+        html { -webkit-text-size-adjust: 100%; width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; position: fixed; top: 0; left: 0; }
+        body { font-family: system-ui, -apple-system, Segoe UI, sans-serif; margin: 0; padding: 0; background: var(--bg); color: var(--text); width: 100%; height: 100%; position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: -webkit-box; display: -webkit-flex; display: -ms-flexbox; display: flex; -webkit-box-orient: vertical; -webkit-box-direction: normal; -webkit-flex-direction: column; -ms-flex-direction: column; flex-direction: column; overflow: hidden; box-sizing: border-box; }
         body.reading-mode { background: var(--read-surface); }
         body.reading-mode #viewer-container { padding-top: 22px; }
         body.reading-mode #pdf-render-area .pdf-page-wrap { box-shadow: 0 10px 44px rgba(0,0,0,0.2); border-radius: 6px; overflow: hidden; }
         body.reading-mode #pdf-render-area .pdf-page-inner { background: var(--read-page); }
-        header { background: var(--primary); color: white; padding: 10px 15px; padding-top: max(10px, env(safe-area-inset-top, 0px)); display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        header .header-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; flex: 1; min-width: 0; }
+        header { background: var(--primary); color: white; padding: 10px 15px; display: -webkit-box; display: -webkit-flex; display: -ms-flexbox; display: flex; -webkit-flex-wrap: wrap; -ms-flex-wrap: wrap; flex-wrap: wrap; gap: 10px; -webkit-box-pack: justify; -webkit-justify-content: space-between; -ms-flex-pack: justify; justify-content: space-between; -webkit-box-align: center; -webkit-align-items: center; -ms-flex-align: center; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); -webkit-box-flex: 0; -webkit-flex-shrink: 0; -ms-flex-negative: 0; flex-shrink: 0; }
+        header .header-actions { display: -webkit-box; display: -webkit-flex; display: -ms-flexbox; display: flex; -webkit-flex-wrap: wrap; -ms-flex-wrap: wrap; flex-wrap: wrap; gap: 8px; -webkit-box-align: center; -webkit-align-items: center; -ms-flex-align: center; align-items: center; -webkit-box-pack: end; -webkit-justify-content: flex-end; -ms-flex-pack: end; justify-content: flex-end; -webkit-box-flex: 1; -webkit-flex: 1; -ms-flex: 1; flex: 1; min-width: 0; }
         body.ui-chrome-hidden header { display: none; }
-        #viewer-container { flex: 1; min-height: 0; min-width: 0; width: 100%; max-width: 100%; box-sizing: border-box; overflow: auto; display: flex; flex-direction: column; align-items: stretch; padding: 15px; padding-bottom: 200px; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; }
+        #viewer-container { -webkit-box-flex: 1; -webkit-flex: 1; -ms-flex: 1; flex: 1; min-height: 0; min-width: 0; width: 100%; max-width: 100%; box-sizing: border-box; overflow: auto; overflow-x: hidden; display: -webkit-box; display: -webkit-flex; display: -ms-flexbox; display: flex; -webkit-box-orient: vertical; -webkit-box-direction: normal; -webkit-flex-direction: column; -ms-flex-direction: column; flex-direction: column; -webkit-align-items: stretch; -ms-flex-align: stretch; align-items: stretch; padding: 15px; padding-bottom: 200px; -webkit-overflow-scrolling: touch; }
         body.ui-chrome-hidden #viewer-container { padding-bottom: 20px; }
         #pdf-render-area { width: 100%; max-width: 100%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; flex: 0 0 auto; }
         #pdf-render-area .pdf-page-wrap { margin: 0 auto; max-width: 100%; }
@@ -40,9 +40,9 @@
         #tts-text-panel.hidden { display: none; }
         #tts-text-panel .panel-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.65; margin-bottom: 8px; }
         #tts-live-text mark { background: var(--highlight); color: inherit; padding: 0 1px; border-radius: 2px; }
-        .controls-bottom { position: fixed; bottom: 0; left: 0; right: 0; background: #1a1a1a; color: #eee; padding: 12px 14px max(16px, env(safe-area-inset-bottom, 0px)); padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: max(14px, env(safe-area-inset-right, 0px)); z-index: 1000; box-shadow: 0 -4px 20px rgba(0,0,0,0.25); }
+        .controls-bottom { position: fixed; bottom: 0; left: 0; right: 0; background: #1a1a1a; color: #eee; padding: 12px 14px 16px; z-index: 1000; box-shadow: 0 -4px 20px rgba(0,0,0,0.25); }
         body.ui-chrome-hidden .controls-bottom { display: none; }
-        .controls-inner { max-width: min(560px, 100%); margin: 0 auto; display: flex; flex-direction: column; gap: 10px; width: 100%; box-sizing: border-box; }
+        .controls-inner { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; width: 100%; box-sizing: border-box; }
         .controls-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; }
         .controls-row.tts-options label { font-size: 0.8rem; opacity: 0.9; display: flex; align-items: center; gap: 6px; }
         .controls-row.tts-options select { max-width: 200px; border-radius: 8px; padding: 6px 8px; border: none; background: #333; color: #fff; }
@@ -63,7 +63,8 @@
         #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.75); color: white; padding: 20px; border-radius: 10px; z-index: 2000; }
         .sr-hint { font-size: 0.7rem; opacity: 0.75; width: 100%; text-align: center; }
         .nowrap { white-space: nowrap; }
-        #cloud-library { max-width: 160px; border-radius: 8px; padding: 6px 8px; border: none; background: rgba(255,255,255,0.15); color: #fff; font-size: 0.8rem; }
+        #cloud-library { display: inline-block; max-width: 160px; border-radius: 8px; padding: 6px 8px; border: 1px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.18); color: #fff; font-size: 0.8rem; vertical-align: middle; }
+        #cloud-library.hidden { display: none !important; }
         #cloud-library option { color: #111; }
         #cloud-badge { font-size: 0.72rem; opacity: 0.85; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         #btn-cloud-save:disabled,
@@ -71,19 +72,19 @@
         #tts-toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(10px); background: rgba(30,30,30,0.92); color: #fff; padding: 9px 20px; border-radius: 20px; font-size: 0.82rem; pointer-events: none; opacity: 0; transition: opacity 0.25s, transform 0.25s; z-index: 3000; white-space: nowrap; }
         #tts-toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
         .settings-wrap { position: relative; z-index: 4100; }
-        .settings-panel { display: none; position: absolute; right: 0; top: 100%; margin-top: 8px; min-width: min(272px, calc(100vw - 24px)); max-width: calc(100vw - 24px); background: var(--panel); color: var(--text); border-radius: 10px; box-shadow: 0 10px 32px rgba(0,0,0,0.22); padding: 12px 14px; z-index: 4000; text-align: left; box-sizing: border-box; }
+        .settings-panel { display: none; position: absolute; right: 0; top: 100%; margin-top: 8px; min-width: 240px; max-width: calc(100vw - 24px); background: var(--panel); color: var(--text); border-radius: 10px; box-shadow: 0 10px 32px rgba(0,0,0,0.22); padding: 12px 14px; z-index: 4000; text-align: left; box-sizing: border-box; }
         .settings-panel.open { display: block; }
         .settings-panel label { display: flex; align-items: flex-start; gap: 10px; font-size: 0.88rem; font-weight: 600; margin: 10px 0; cursor: pointer; }
         .settings-panel input[type="checkbox"] { margin-top: 3px; flex-shrink: 0; }
         .settings-panel .panel-hint { font-size: 0.72rem; opacity: 0.72; margin: 2px 0 4px 26px; font-weight: 400; line-height: 1.35; }
-        #btn-show-chrome { display: none; position: fixed; left: max(12px, env(safe-area-inset-left, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px)); z-index: 3500; border: none; border-radius: 999px; padding: 12px 16px; cursor: pointer; font-weight: 600; background: var(--accent); color: #fff; box-shadow: 0 4px 18px rgba(0,0,0,0.35); }
+        #btn-show-chrome { display: none; position: fixed; left: 12px; bottom: 12px; z-index: 3500; border: none; border-radius: 999px; padding: 12px 16px; cursor: pointer; font-weight: 600; background: var(--accent); color: #fff; box-shadow: 0 4px 18px rgba(0,0,0,0.35); }
         body.ui-chrome-hidden #btn-show-chrome { display: block; }
         @media (max-width: 640px) {
             header { flex-direction: column; align-items: stretch; }
             header > span:first-of-type { text-align: center; }
             .header-actions { justify-content: center; }
-            #viewer-container { padding: 12px 10px; padding-bottom: max(210px, calc(46vh + env(safe-area-inset-bottom, 0px))); }
-            body.ui-chrome-hidden #viewer-container { padding-bottom: max(20px, env(safe-area-inset-bottom, 0px)); }
+            #viewer-container { padding: 12px 10px; padding-bottom: 210px; }
+            body.ui-chrome-hidden #viewer-container { padding-bottom: 20px; }
             .controls-row.tts-options { flex-direction: column; align-items: stretch; gap: 10px; }
             .controls-row.tts-options label { justify-content: space-between; width: 100%; }
             .controls-row.tts-options select { max-width: none; width: 100%; }
@@ -92,8 +93,8 @@
             .controls-row.page-jump .nowrap { white-space: normal; }
         }
         @media (min-width: 1400px) {
-            .controls-inner { max-width: min(720px, 96vw); }
-            #tts-text-panel { max-width: min(900px, 96vw); }
+            .controls-inner { max-width: 720px; }
+            #tts-text-panel { max-width: 900px; }
         }
         @media (pointer: coarse) {
             .btn { min-height: 44px; padding: 10px 16px; }
@@ -103,7 +104,7 @@
 <body>
 
 <div id="loading" class="hidden">Carregando PDF...</div>
-<div id="app-notification" style="display:none; position:fixed; top:0; left:0; right:0; z-index:9998; padding:14px 18px 14px max(18px,env(safe-area-inset-left,0px)); font-size:0.92rem; line-height:1.5; box-shadow:0 2px 10px rgba(0,0,0,0.4); color:#fff; align-items:flex-start; gap:12px; cursor:pointer;" onclick="this.style.display='none'" aria-live="assertive">
+<div id="app-notification" style="display:none; position:fixed; top:0; left:0; right:0; z-index:9998; padding:14px 18px; font-size:0.92rem; line-height:1.5; box-shadow:0 2px 10px rgba(0,0,0,0.4); color:#fff; align-items:flex-start; gap:12px; cursor:pointer;" onclick="this.style.display='none'" aria-live="assertive">
     <span id="app-notification-text" style="flex:1;"></span>
     <span style="flex-shrink:0; opacity:0.8; font-size:1.1rem;">✕</span>
 </div>
@@ -117,7 +118,7 @@
 <header>
     <span><b>ReadEra</b> Web Pro</span>
     <div class="header-actions">
-        <span id="cloud-badge" class="hidden" title="Estado da nuvem"></span>
+        <span id="cloud-badge" title="Estado da nuvem">☁️ Aguardando…</span>
         <select id="cloud-library" class="hidden" title="Abrir PDF salvo na nuvem" aria-label="Biblioteca na nuvem"></select>
         <button type="button" class="btn btn-ghost hidden" id="btn-cloud-save" title="Enviar PDF atual para o Supabase">☁️ Guardar</button>
         <button type="button" class="btn btn-stop hidden" id="btn-cloud-delete" title="Apagar da nuvem o PDF que está aberto (ficheiro + registo na base)">🗑 Excluir da nuvem</button>
@@ -977,16 +978,17 @@ var safeStorage = (function() {
     }
 
     function updateCloudChrome() {
-        const saveBtn = document.getElementById('btn-cloud-save');
-        const delBtn = document.getElementById('btn-cloud-delete');
-        const lib = document.getElementById('cloud-library');
+        var saveBtn = document.getElementById('btn-cloud-save');
+        var delBtn  = document.getElementById('btn-cloud-delete');
+        var lib     = document.getElementById('cloud-library');
         if (!saveBtn || !lib) return;
-        const on = !!readeraSb;
-        lib.classList.toggle('hidden', !on);
-        saveBtn.classList.toggle('hidden', !on || !pdfDoc);
+        var on = !!readeraSb;
+        /* Em TVs o classList.toggle com segundo argumento pode não funcionar em WebKit antigo */
+        if (on) { lib.classList.remove('hidden'); } else { lib.classList.add('hidden'); }
+        if (on && pdfDoc) { saveBtn.classList.remove('hidden'); } else { saveBtn.classList.add('hidden'); }
         saveBtn.disabled = !on || !pdfDoc || !pdfCacheBytes || !!cloudDocumentId || cloudSyncInFlight;
         if (delBtn) {
-            delBtn.classList.toggle('hidden', !on || !pdfDoc);
+            if (on && pdfDoc) { delBtn.classList.remove('hidden'); } else { delBtn.classList.add('hidden'); }
             delBtn.disabled = !on || !pdfDoc || !cloudDocumentId || cloudSyncInFlight;
         }
         updateCloudPrefsVisibility();
@@ -996,32 +998,45 @@ var safeStorage = (function() {
         var cfg = window.READERA_SUPABASE;
         var badge = document.getElementById('cloud-badge');
         if (!cfg || !cfg.url || !cfg.anonKey) {
-            if (badge) { badge.textContent = 'Nuvem: off'; badge.classList.remove('hidden'); }
+            if (badge) { badge.textContent = '☁️ Nuvem: off'; }
             updateCloudPrefsVisibility();
             initTtsEngine();
             return;
         }
         var sb = window.supabase;
+        /* Em TVs a biblioteca pode demorar mais para carregar — retry após 3 s */
         if (!sb || typeof sb.createClient !== 'function') {
-            if (badge) { badge.textContent = 'Nuvem: erro (lib)'; badge.classList.remove('hidden'); }
-            updateCloudPrefsVisibility();
-            initTtsEngine();
+            if (badge) { badge.textContent = '☁️ Aguardando lib…'; }
+            setTimeout(function() {
+                var sb2 = window.supabase;
+                if (!sb2 || typeof sb2.createClient !== 'function') {
+                    if (badge) { badge.textContent = '☁️ Erro (lib)'; }
+                    updateCloudPrefsVisibility();
+                    initTtsEngine();
+                } else {
+                    _doInitSupabase(cfg, sb2, badge);
+                }
+            }, 3000);
             return;
         }
+        _doInitSupabase(cfg, sb, badge);
+    }
+
+    function _doInitSupabase(cfg, sb, badge) {
         try {
             readeraSb = sb.createClient(cfg.url, cfg.anonKey, {
                 auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
             });
         } catch(e) {
             readeraSb = null;
+            if (badge) { badge.textContent = '☁️ Erro (init)'; }
             updateCloudPrefsVisibility();
             initTtsEngine();
             return;
         }
         if (badge) {
-            badge.textContent = 'Nuvem: ligada (sem login)';
+            badge.textContent = '☁️ Nuvem: ligada';
             badge.title = 'Apenas chave pública; PDFs em Storage + metadados na tabela documents.';
-            badge.classList.remove('hidden');
         }
         refreshCloudLibrary().then(function() {
             updateCloudChrome();
@@ -1037,8 +1052,7 @@ var safeStorage = (function() {
             readeraSb = null;
             var msg = String((err && (err.message || err.error_description)) || '');
             if (badge) {
-                badge.classList.remove('hidden');
-                badge.textContent = 'Nuvem: erro (consola)';
+                badge.textContent = '☁️ Erro (rede)';
                 badge.title = msg ? msg.slice(0, 200) : '';
             }
             console.error(err);
