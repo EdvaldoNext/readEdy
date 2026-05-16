@@ -76,7 +76,7 @@
         header { background: var(--primary); color: white; padding: 10px 15px; display: -webkit-box; display: -webkit-flex; display: -ms-flexbox; display: flex; -webkit-flex-wrap: wrap; -ms-flex-wrap: wrap; flex-wrap: wrap; gap: 10px; -webkit-box-pack: justify; -webkit-justify-content: space-between; -ms-flex-pack: justify; justify-content: space-between; -webkit-box-align: center; -webkit-align-items: center; -ms-flex-align: center; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); -webkit-box-flex: 0; -webkit-flex-shrink: 0; -ms-flex-negative: 0; flex-shrink: 0; }
         header .header-actions { display: -webkit-box; display: -webkit-flex; display: -ms-flexbox; display: flex; -webkit-flex-wrap: wrap; -ms-flex-wrap: wrap; flex-wrap: wrap; gap: 8px; -webkit-box-align: center; -webkit-align-items: center; -ms-flex-align: center; align-items: center; -webkit-box-pack: end; -webkit-justify-content: flex-end; -ms-flex-pack: end; justify-content: flex-end; -webkit-box-flex: 1; -webkit-flex: 1; -ms-flex: 1; flex: 1; min-width: 0; }
         body.ui-chrome-hidden header { display: none; }
-        #viewer-container { -webkit-box-flex: 1; -webkit-flex: 1; -ms-flex: 1; flex: 1; min-height: 0; min-width: 0; width: 100%; max-width: 100%; box-sizing: border-box; overflow: auto; overflow-x: hidden; display: -webkit-box; display: -webkit-flex; display: -ms-flexbox; display: flex; -webkit-box-orient: vertical; -webkit-box-direction: normal; -webkit-flex-direction: column; -ms-flex-direction: column; flex-direction: column; -webkit-align-items: stretch; -ms-flex-align: stretch; align-items: stretch; padding: 15px; padding-bottom: 200px; -webkit-overflow-scrolling: touch; }
+        #viewer-container { -webkit-box-flex: 1; -webkit-flex: 1; -ms-flex: 1; flex: 1; min-height: 0; min-width: 0; width: 100%; max-width: 100%; box-sizing: border-box; overflow: auto; overflow-x: hidden; display: -webkit-box; display: -webkit-flex; display: -ms-flexbox; display: flex; -webkit-box-orient: vertical; -webkit-box-direction: normal; -webkit-flex-direction: column; -ms-flex-direction: column; flex-direction: column; -webkit-align-items: stretch; -ms-flex-align: stretch; align-items: stretch; padding: 15px; padding-bottom: 100px; -webkit-overflow-scrolling: touch; }
         body.ui-chrome-hidden #viewer-container { padding-bottom: 20px; }
         #pdf-render-area { width: 100%; max-width: 100%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; flex: 0 0 auto; }
         #pdf-render-area .pdf-page-wrap { margin: 0 auto; max-width: 100%; }
@@ -117,17 +117,289 @@
         #cloud-library { display: inline-block; max-width: 160px; border-radius: 8px; padding: 6px 8px; border: 1px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.18); color: #fff; font-size: 0.8rem; vertical-align: middle; }
         #cloud-library.hidden { display: none !important; }
         #cloud-library option { color: #111; }
-        #cloud-badge { font-size: 0.72rem; opacity: 0.85; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         #btn-cloud-save:disabled,
         #btn-cloud-delete:disabled { opacity: 0.45; cursor: not-allowed; }
         #tts-toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(10px); background: rgba(30,30,30,0.92); color: #fff; padding: 9px 20px; border-radius: 20px; font-size: 0.82rem; pointer-events: none; opacity: 0; transition: opacity 0.25s, transform 0.25s; z-index: 3000; white-space: nowrap; }
         #tts-toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
-        .settings-wrap { position: relative; z-index: 4100; }
-        .settings-panel { display: none; position: absolute; right: 0; top: 100%; margin-top: 8px; min-width: 240px; max-width: calc(100vw - 24px); background: var(--panel); color: var(--text); border-radius: 10px; box-shadow: 0 10px 32px rgba(0,0,0,0.22); padding: 12px 14px; z-index: 4000; text-align: left; box-sizing: border-box; }
-        .settings-panel.open { display: block; }
-        .settings-panel label { display: flex; align-items: flex-start; gap: 10px; font-size: 0.88rem; font-weight: 600; margin: 10px 0; cursor: pointer; }
-        .settings-panel input[type="checkbox"] { margin-top: 3px; flex-shrink: 0; }
-        .settings-panel .panel-hint { font-size: 0.72rem; opacity: 0.72; margin: 2px 0 4px 26px; font-weight: 400; line-height: 1.35; }
+        .header-brand { font-size: 0.95rem; white-space: nowrap; flex-shrink: 0; }
+        .header-actions { gap: 6px; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+        .header-actions::-webkit-scrollbar { display: none; }
+        .hdr-icon-btn {
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            border: none;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.14);
+            color: #fff;
+            font-size: 1.05rem;
+            line-height: 1;
+            cursor: pointer;
+            display: -webkit-inline-box;
+            display: -webkit-inline-flex;
+            display: -ms-inline-flexbox;
+            display: inline-flex;
+            -webkit-box-align: center;
+            -webkit-align-items: center;
+            -ms-flex-align: center;
+            align-items: center;
+            -webkit-box-pack: center;
+            -webkit-justify-content: center;
+            -ms-flex-pack: center;
+            justify-content: center;
+            padding: 0;
+            flex-shrink: 0;
+            vertical-align: middle;
+        }
+        .hdr-icon-btn:active { -webkit-transform: scale(0.96); transform: scale(0.96); }
+        .hdr-icon-btn.hdr-icon-pill { width: auto; min-width: 40px; padding: 0 11px; gap: 3px; }
+        .hdr-icon-primary { background: var(--accent); font-weight: 600; }
+        .hdr-icon-danger { background: #c0392b; }
+        .hdr-micro { font-size: 0.58rem; font-weight: 800; letter-spacing: 0.04em; opacity: 0.95; }
+        #cloud-badge {
+            cursor: default;
+            font-size: 1.15rem;
+        }
+        #cloud-badge.cloud-status-on { background: rgba(39, 174, 96, 0.45); box-shadow: 0 0 0 2px #2ecc71; }
+        #cloud-badge.cloud-status-off { background: rgba(192, 57, 43, 0.4); box-shadow: 0 0 0 2px #e74c3c; }
+        #cloud-badge.cloud-status-error { background: rgba(192, 57, 43, 0.55); box-shadow: 0 0 0 2px #e74c3c; }
+        #cloud-badge.cloud-status-wait,
+        #cloud-badge.cloud-status-pending { background: rgba(255,255,255,0.1); opacity: 0.85; }
+        #cloud-library.hdr-library-select {
+            max-width: 148px;
+            min-width: 108px;
+            border-radius: 999px;
+            padding: 8px 10px;
+            border: 1px solid rgba(255,255,255,0.35);
+            background: rgba(255,255,255,0.16);
+            color: #fff;
+            font-size: 0.78rem;
+            flex-shrink: 0;
+        }
+        #settings-screen {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 5000;
+            background: var(--bg);
+            color: var(--text);
+            -webkit-box-orient: vertical;
+            -webkit-box-direction: normal;
+            -webkit-flex-direction: column;
+            -ms-flex-direction: column;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #settings-screen.open { display: -webkit-box; display: -webkit-flex; display: -ms-flexbox; display: flex; }
+        .settings-screen-header {
+            display: -webkit-box;
+            display: -webkit-flex;
+            display: -ms-flexbox;
+            display: flex;
+            -webkit-box-align: center;
+            -webkit-align-items: center;
+            -ms-flex-align: center;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            background: var(--primary);
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            flex-shrink: 0;
+        }
+        .settings-screen-header h1 { margin: 0; font-size: 1.05rem; font-weight: 700; -webkit-box-flex: 1; -webkit-flex: 1; -ms-flex: 1; flex: 1; }
+        .settings-back-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+            font-size: 1.25rem;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0;
+        }
+        .settings-screen-scroll {
+            -webkit-box-flex: 1;
+            -webkit-flex: 1;
+            -ms-flex: 1;
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 16px 14px 28px;
+            box-sizing: border-box;
+        }
+        .settings-screen-inner { max-width: 520px; margin: 0 auto; width: 100%; }
+        .settings-group {
+            background: var(--panel);
+            border-radius: 12px;
+            padding: 4px 0;
+            margin-bottom: 14px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }
+        .settings-group-title {
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            opacity: 0.55;
+            margin: 0;
+            padding: 12px 14px 6px;
+        }
+        .settings-row {
+            display: -webkit-box;
+            display: -webkit-flex;
+            display: -ms-flexbox;
+            display: flex;
+            -webkit-box-align: start;
+            -webkit-align-items: flex-start;
+            -ms-flex-align: start;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 14px;
+            margin: 0;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border-top: 1px solid rgba(128,128,128,0.12);
+        }
+        .settings-group .settings-row:first-of-type { border-top: none; }
+        .settings-row input[type="checkbox"] { margin-top: 3px; flex-shrink: 0; width: 18px; height: 18px; }
+        .settings-row-text { -webkit-box-flex: 1; -webkit-flex: 1; -ms-flex: 1; flex: 1; min-width: 0; }
+        .settings-group .panel-hint {
+            font-size: 0.72rem;
+            opacity: 0.72;
+            margin: -4px 14px 12px;
+            padding: 0;
+            font-weight: 400;
+            line-height: 1.4;
+        }
+        .settings-danger-wrap { padding: 0 0 8px; }
+        .settings-field {
+            padding: 12px 14px;
+            border-top: 1px solid rgba(128,128,128,0.12);
+        }
+        .settings-group .settings-field:first-of-type { border-top: none; }
+        .settings-field-label {
+            display: block;
+            font-size: 0.88rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .settings-field-control {
+            display: -webkit-box;
+            display: -webkit-flex;
+            display: -ms-flexbox;
+            display: flex;
+            -webkit-flex-wrap: wrap;
+            -ms-flex-wrap: wrap;
+            flex-wrap: wrap;
+            gap: 8px;
+            -webkit-box-align: center;
+            -webkit-align-items: center;
+            -ms-flex-align: center;
+            align-items: center;
+        }
+        #settings-panel #voice-select {
+            width: 100%;
+            max-width: 100%;
+            border-radius: 8px;
+            padding: 8px 10px;
+            border: 1px solid rgba(128,128,128,0.22);
+            background: var(--bg);
+            color: var(--text);
+            font-size: 0.88rem;
+            box-sizing: border-box;
+        }
+        #settings-panel #rate-range {
+            -webkit-box-flex: 1;
+            -webkit-flex: 1;
+            -ms-flex: 1;
+            flex: 1;
+            min-width: 120px;
+        }
+        #settings-panel #rate-label {
+            font-size: 0.88rem;
+            font-weight: 600;
+            min-width: 2.2em;
+            text-align: right;
+        }
+        #settings-panel #page-jump-input {
+            width: 80px;
+            border-radius: 8px;
+            padding: 8px 10px;
+            border: 1px solid rgba(128,128,128,0.22);
+            background: var(--bg);
+            color: var(--text);
+            font-size: 0.9rem;
+        }
+        #settings-panel #btn-page-jump {
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            background: var(--accent);
+            color: #fff;
+            font-weight: 600;
+            font-size: 0.88rem;
+            cursor: pointer;
+        }
+        .settings-panel .sr-hint-block {
+            font-size: 0.72rem;
+            opacity: 0.72;
+            margin: 0 14px 12px;
+            line-height: 1.45;
+        }
+        .controls-inner-compact { gap: 6px; }
+        .controls-row-main { margin: 0; }
+        #btn-reset-storage {
+            display: block;
+            width: calc(100% - 28px);
+            margin: 8px 14px 14px;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            background: #c0392b;
+            color: #fff;
+            font-weight: 600;
+            font-size: 0.88rem;
+            cursor: pointer;
+        }
+        @media (min-width: 640px) {
+            #settings-screen { padding: 24px; box-sizing: border-box; background: rgba(0,0,0,0.4); }
+            #settings-screen.open {
+                -webkit-box-align: center;
+                -webkit-align-items: center;
+                -ms-flex-align: center;
+                align-items: center;
+                -webkit-box-pack: center;
+                -webkit-justify-content: center;
+                -ms-flex-pack: center;
+                justify-content: center;
+            }
+            .settings-screen-card {
+                max-width: 480px;
+                margin: auto;
+                width: 100%;
+                max-height: calc(100vh - 48px);
+                background: var(--bg);
+                border-radius: 14px;
+                overflow: hidden;
+                display: -webkit-box;
+                display: -webkit-flex;
+                display: -ms-flexbox;
+                display: flex;
+                -webkit-box-orient: vertical;
+                -webkit-box-direction: normal;
+                -webkit-flex-direction: column;
+                -ms-flex-direction: column;
+                flex-direction: column;
+                box-shadow: 0 16px 48px rgba(0,0,0,0.28);
+            }
+        }
         /* Botão ☰ fixo — visível na tela de leitura, independente da barra ⏪⏩↔ */
         #btn-show-chrome {
             display: none;
@@ -211,7 +483,7 @@
             header { flex-direction: column; align-items: stretch; }
             header > span:first-of-type { text-align: center; }
             .header-actions { justify-content: center; }
-            #viewer-container { padding: 12px 10px; padding-bottom: 210px; }
+            #viewer-container { padding: 12px 10px; padding-bottom: 110px; }
             body.ui-chrome-hidden #viewer-container { padding-bottom: 20px; }
             .controls-row.tts-options { flex-direction: column; align-items: stretch; gap: 10px; }
             .controls-row.tts-options label { justify-content: space-between; width: 100%; }
@@ -301,41 +573,86 @@
 <div id="app-container">
 
 <header>
-    <span><b>ReadEra</b> Web Pro</span>
+    <span class="header-brand"><b>ReadEra</b> Web Pro</span>
     <div class="header-actions">
-        <span id="cloud-badge" title="Estado da nuvem">☁️ Aguardando…</span>
-        <select id="cloud-library" class="hidden" title="Abrir PDF salvo na nuvem" aria-label="Biblioteca na nuvem"></select>
-        <button type="button" class="btn btn-ghost hidden" id="btn-cloud-save" title="Enviar PDF atual para o Supabase">☁️ Guardar</button>
-        <button type="button" class="btn btn-stop hidden" id="btn-cloud-delete" title="Apagar da nuvem o PDF que está aberto (ficheiro + registo na base)">🗑 Excluir da nuvem</button>
-        <div class="settings-wrap">
-            <button type="button" class="btn btn-ghost" id="btn-settings" title="Configurações de leitura" aria-expanded="false" aria-controls="settings-panel">⚙️ Config</button>
-            <div id="settings-panel" class="settings-panel" role="region" aria-label="Configurações de leitura">
-                <label><input type="checkbox" id="opt-hide-chrome"> Ocultar barras (PDF em quase tela cheia)</label>
-                <p class="panel-hint">Esconde o cabeçalho e a barra inferior. Use o botão flutuante “Mostrar controles” para voltar.</p>
-                <label><input type="checkbox" id="opt-reading-mode"> Modo leitura</label>
-                <p class="panel-hint">Fundo mais calmo e página com aparência de leitor focado no texto.</p>
-                <label><input type="checkbox" id="opt-sync-panel" checked> Painel de texto abaixo do PDF</label>
-                <p class="panel-hint">Mostra o mesmo trecho em texto corrido (complementa o destaque sobre o PDF).</p>
-                <label id="opt-auto-cloud-wrap"><input type="checkbox" id="opt-auto-cloud" checked> Enviar PDF para a nuvem ao abrir</label>
-                <p class="panel-hint">Com a nuvem ligada, cada ficheiro aberto aqui é gravado no Supabase (Storage + registo na base). Assim pode continuar a ler noutro aparelho ou browser com a mesma sessão.</p>
-                <label id="opt-resume-cloud-wrap"><input type="checkbox" id="opt-resume-cloud" checked> Ao iniciar, abrir o último PDF da nuvem</label>
-                <p class="panel-hint">Usa o último documento em que ficou, guardado na base (não depende da memória RAM do separador).</p>
-                <hr style="border:none; border-top:1px solid rgba(128,128,128,0.25); margin:10px 0;">
-                <button type="button" id="btn-reset-storage" style="width:100%; padding:7px; border:none; border-radius:8px; background:#c0392b; color:#fff; font-weight:600; cursor:pointer; font-size:0.82rem;">🗑 Limpar dados locais (reset)</button>
-                <p class="panel-hint">Remove preferências e o ID do último documento guardado neste browser. Use se a página estiver presa ou com comportamento estranho.</p>
-            </div>
-        </div>
-        <button type="button" class="btn btn-ghost" id="btn-theme" title="Tema claro/escuro">🌙 Tema</button>
-        <button type="button" class="btn btn-main" onclick="document.getElementById('file-input').click()">📂 Abrir PDF</button>
+        <button type="button" id="cloud-badge" class="hdr-icon-btn cloud-status-wait" title="Estado da nuvem" aria-label="Estado da nuvem" disabled>☁️</button>
+        <select id="cloud-library" class="hdr-library-select hidden" title="Abrir PDF salvo na nuvem" aria-label="Meus PDFs na nuvem"></select>
+        <button type="button" class="hdr-icon-btn hidden" id="btn-cloud-save" title="Guardar PDF na nuvem" aria-label="Guardar na nuvem">☁️⬆</button>
+        <button type="button" class="hdr-icon-btn hdr-icon-danger hdr-icon-pill hidden" id="btn-cloud-delete" title="Excluir PDF da nuvem" aria-label="Excluir PDF da nuvem">🗑<span class="hdr-micro">PDF</span></button>
+        <button type="button" class="hdr-icon-btn" id="btn-settings" title="Configurações" aria-expanded="false" aria-controls="settings-screen">⚙️</button>
+        <button type="button" class="hdr-icon-btn" id="btn-theme" title="Tema claro/escuro" aria-label="Alternar tema">🌙</button>
+        <button type="button" class="hdr-icon-btn hdr-icon-primary hdr-icon-pill" id="btn-open-pdf" title="Abrir PDF" aria-label="Abrir PDF" onclick="document.getElementById('file-input').click()">📂<span class="hdr-micro">PDF</span></button>
     </div>
     <input type="file" id="file-input" accept="application/pdf" class="hidden">
 </header>
+
+<div id="settings-screen" class="settings-screen" role="dialog" aria-modal="true" aria-labelledby="settings-screen-title" aria-hidden="true">
+    <div class="settings-screen-card">
+        <div class="settings-screen-header">
+            <button type="button" class="settings-back-btn" id="btn-settings-back" title="Voltar" aria-label="Voltar">←</button>
+            <h1 id="settings-screen-title">Configurações</h1>
+        </div>
+        <div class="settings-screen-scroll">
+            <div class="settings-screen-inner" id="settings-panel" role="region" aria-label="Opções de leitura">
+                <section class="settings-group">
+                    <h2 class="settings-group-title">Leitura</h2>
+                    <label class="settings-row"><input type="checkbox" id="opt-hide-chrome"><span class="settings-row-text">Ocultar barras (quase tela cheia)</span></label>
+                    <p class="panel-hint">Esconde o cabeçalho e a barra inferior. Use ☰ na leitura para voltar; ⚙️ para voz e opções.</p>
+                    <label class="settings-row"><input type="checkbox" id="opt-reading-mode"><span class="settings-row-text">Modo leitura</span></label>
+                    <p class="panel-hint">Fundo calmo e página com aparência de leitor focado no texto.</p>
+                    <label class="settings-row"><input type="checkbox" id="opt-sync-panel" checked><span class="settings-row-text">Painel de texto sincronizado</span></label>
+                    <p class="panel-hint">Mostra o trecho em texto corrido abaixo do PDF.</p>
+                </section>
+                <section class="settings-group">
+                    <h2 class="settings-group-title">Navegação</h2>
+                    <div class="settings-field">
+                        <span class="settings-field-label">Ir para página</span>
+                        <div class="settings-field-control">
+                            <input type="number" id="page-jump-input" min="1" step="1" inputmode="numeric" placeholder="nº" title="Número da página (1 … total)">
+                            <button type="button" id="btn-page-jump">Ir</button>
+                        </div>
+                    </div>
+                    <p class="panel-hint">Atalho: digite o número e Enter ou toque em Ir.</p>
+                </section>
+                <section class="settings-group">
+                    <h2 class="settings-group-title">Voz alta</h2>
+                    <div class="settings-field">
+                        <span class="settings-field-label">Voz</span>
+                        <select id="voice-select" title="Voz da leitura"></select>
+                    </div>
+                    <div class="settings-field">
+                        <span class="settings-field-label">Velocidade</span>
+                        <div class="settings-field-control">
+                            <input type="range" id="rate-range" min="0.5" max="1.75" step="0.05" value="1" title="Velocidade da leitura">
+                            <span id="rate-label">1×</span>
+                        </div>
+                    </div>
+                    <label class="settings-row"><input type="checkbox" id="continuous-read" checked><span class="settings-row-text">Ler em sequência (próximas páginas)</span></label>
+                    <p class="panel-hint">Quando a página terminar, avança automaticamente para a seguinte.</p>
+                </section>
+                <p class="sr-hint settings-panel sr-hint-block">Atalhos: ← → mudam página · Espaço ouvir/parar na barra inferior</p>
+                <section class="settings-group" id="settings-group-cloud">
+                    <h2 class="settings-group-title">Nuvem</h2>
+                    <label class="settings-row" id="opt-auto-cloud-wrap"><input type="checkbox" id="opt-auto-cloud" checked><span class="settings-row-text">Enviar PDF para a nuvem ao abrir</span></label>
+                    <p class="panel-hint">Grava no Supabase para continuar noutro aparelho ou browser.</p>
+                    <label class="settings-row" id="opt-resume-cloud-wrap"><input type="checkbox" id="opt-resume-cloud" checked><span class="settings-row-text">Ao iniciar, abrir o último PDF da nuvem</span></label>
+                    <p class="panel-hint">Usa o último documento guardado na base.</p>
+                </section>
+                <section class="settings-group settings-danger-wrap">
+                    <h2 class="settings-group-title">Avançado</h2>
+                    <button type="button" id="btn-reset-storage">🗑 Limpar dados locais</button>
+                    <p class="panel-hint">Remove preferências e o ID do último documento neste browser.</p>
+                </section>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div id="main-container" class="pdf-viewer-area">
 <main id="viewer-container">
     <div id="welcome">
         <h2 style="text-align: center; margin-top: 50px;">Pronto para ler?</h2>
-        <p style="text-align: center; opacity: 0.7;">Clique no botão "Abrir" acima.</p>
+        <p style="text-align: center; opacity: 0.7;">Toque em 📂 PDF no topo para abrir um ficheiro.</p>
     </div>
     <div id="pdf-render-area"></div>
     <div id="tts-text-panel" class="hidden" aria-live="polite">
@@ -358,23 +675,14 @@
 </div>
 
 <div id="nav-controls" class="controls-bottom hidden">
-    <div class="controls-inner">
-        <div class="controls-row">
+    <div class="controls-inner controls-inner-compact">
+        <div class="controls-row controls-row-main">
             <button type="button" class="btn" onclick="changePage(-1)" style="background:#444; color:white;">◀ Pág.</button>
             <button type="button" id="btn-tts" class="btn btn-tts" onclick="toggleTTS()">🔊 Ouvir</button>
             <span id="page-info">0 / 0</span>
             <button type="button" class="btn" onclick="changePage(1)" style="background:#444; color:white;">Pág. ▶</button>
         </div>
-        <div class="controls-row page-jump">
-            <label class="nowrap">Ir para pág. <input type="number" id="page-jump-input" min="1" step="1" inputmode="numeric" placeholder="nº" title="Digite o número (1 … total) e Enter ou Ir"></label>
-            <button type="button" class="btn" id="btn-page-jump" style="background:#555; color:#fff;">Ir</button>
-        </div>
-        <div class="controls-row tts-options">
-            <label>Voz <select id="voice-select" title="Voz do sistema"></select></label>
-            <label>Veloc. <input type="range" id="rate-range" min="0.5" max="1.75" step="0.05" value="1"> <span id="rate-label">1×</span></label>
-            <label class="nowrap"><input type="checkbox" id="continuous-read" checked> Ler em sequência</label>
-        </div>
-        <p class="sr-hint">Atalhos: ← → mudam página · Espaço ouvir/parar · Ir para pág.: número + Enter ou Ir</p>
+        <p class="sr-hint">← → páginas · Espaço ouvir/parar · ⚙️ voz, velocidade e mais</p>
     </div>
 </div>
 
@@ -608,7 +916,23 @@ var safeStorage = (function() {
     function applyTheme(dark) {
         document.body.classList.toggle('dark', dark);
         safeStorage.setItem('readera-theme', dark ? 'dark' : 'light');
-        document.getElementById('btn-theme').textContent = dark ? '☀️ Tema' : '🌙 Tema';
+        var themeBtn = document.getElementById('btn-theme');
+        if (themeBtn) themeBtn.textContent = dark ? '☀️' : '🌙';
+    }
+
+    function setCloudBadge(state, title) {
+        var badge = document.getElementById('cloud-badge');
+        if (!badge) return;
+        badge.textContent = '☁️';
+        var states = ['on', 'off', 'wait', 'pending', 'error'];
+        for (var i = 0; i < states.length; i++) {
+            badge.classList.remove('cloud-status-' + states[i]);
+        }
+        badge.classList.add('cloud-status-' + (state || 'wait'));
+        if (title) {
+            badge.title = title;
+            badge.setAttribute('aria-label', title);
+        }
     }
     document.getElementById('btn-theme').addEventListener('click', function() {
         applyTheme(!document.body.classList.contains('dark'));
@@ -1146,64 +1470,34 @@ var safeStorage = (function() {
         if (rc) rc.checked = resumeCloud;
     }
 
-    function adjustSettingsPanelPos() {
-        const panel = document.getElementById('settings-panel');
-        const btn = document.getElementById('btn-settings');
-        if (!panel || !btn) return;
-        var clearMobileLayout = function() {
-            ['position', 'left', 'right', 'top', 'width', 'maxWidth', 'minWidth', 'maxHeight', 'marginTop', 'overflowY'].forEach(function(p) { panel.style.removeProperty(p); });
-        };
-        if (!panel.classList.contains('open')) {
-            clearMobileLayout();
-            return;
-        }
-        if (window.innerWidth >= 640) {
-            clearMobileLayout();
-            return;
-        }
-        const pad = 10;
-        const r = btn.getBoundingClientRect();
-        panel.style.position = 'fixed';
-        panel.style.left = pad + 'px';
-        panel.style.right = pad + 'px';
-        panel.style.width = 'auto';
-        panel.style.minWidth = '0';
-        panel.style.maxWidth = 'none';
-        panel.style.marginTop = '0';
-        panel.style.top = (r.bottom + 8) + 'px';
-        panel.style.maxHeight = Math.max(140, window.innerHeight - r.bottom - 20) + 'px';
-        panel.style.overflowY = 'auto';
-    }
-
     function wireSettingsUi() {
         const btn = document.getElementById('btn-settings');
-        const panel = document.getElementById('settings-panel');
+        const screen = document.getElementById('settings-screen');
+        const backBtn = document.getElementById('btn-settings-back');
         const hideCb = document.getElementById('opt-hide-chrome');
         const readCb = document.getElementById('opt-reading-mode');
         const syncCb = document.getElementById('opt-sync-panel');
         const autoCloudCb = document.getElementById('opt-auto-cloud');
         const resumeCloudCb = document.getElementById('opt-resume-cloud');
         const showChrome = document.getElementById('btn-show-chrome');
-        if (!btn || !panel || !hideCb || !readCb || !syncCb || !showChrome) return;
+        if (!btn || !screen || !hideCb || !readCb || !syncCb || !showChrome) return;
 
-        function closePanel() {
-            panel.classList.remove('open');
+        function closeSettingsScreen() {
+            screen.classList.remove('open');
+            screen.setAttribute('aria-hidden', 'true');
             btn.setAttribute('aria-expanded', 'false');
-            adjustSettingsPanelPos();
         }
-        function togglePanel(e) {
+        function openSettingsScreen() {
+            screen.classList.add('open');
+            screen.setAttribute('aria-hidden', 'false');
+            btn.setAttribute('aria-expanded', 'true');
+        }
+        btn.addEventListener('click', function(e) {
             e.stopPropagation();
-            const open = panel.classList.toggle('open');
-            btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-            adjustSettingsPanelPos();
-        }
-        btn.addEventListener('click', togglePanel);
-        window.addEventListener('resize', function() { adjustSettingsPanelPos(); });
-        document.addEventListener('click', function(e) {
-            if (!panel.classList.contains('open')) return;
-            if (e.target.closest('.settings-wrap')) return;
-            closePanel();
+            if (screen.classList.contains('open')) closeSettingsScreen();
+            else openSettingsScreen();
         });
+        if (backBtn) backBtn.addEventListener('click', closeSettingsScreen);
 
         hideCb.addEventListener('change', function() {
             safeStorage.setItem('readera-hide-chrome', hideCb.checked ? '1' : '0');
@@ -1390,6 +1684,8 @@ var safeStorage = (function() {
 
     function updateCloudPrefsVisibility() {
         const on = !!readeraSb;
+        var cloudGroup = document.getElementById('settings-group-cloud');
+        if (cloudGroup) cloudGroup.style.display = on ? '' : 'none';
         ['opt-auto-cloud-wrap', 'opt-resume-cloud-wrap'].forEach(function(id) {
             var el = document.getElementById(id);
             if (el) el.style.display = on ? '' : 'none';
@@ -1430,7 +1726,7 @@ var safeStorage = (function() {
         var cfg = window.READERA_SUPABASE;
         var badge = document.getElementById('cloud-badge');
         if (!cfg || !cfg.url || !cfg.anonKey) {
-            if (badge) { badge.textContent = '☁️ Nuvem: off'; }
+            setCloudBadge('off', 'Nuvem desligada (sem config.js)');
             updateCloudPrefsVisibility();
             initTtsEngine();
             return;
@@ -1438,11 +1734,11 @@ var safeStorage = (function() {
         var sb = window.supabase;
         /* Em TVs a biblioteca pode demorar mais para carregar — retry após 3 s */
         if (!sb || typeof sb.createClient !== 'function') {
-            if (badge) { badge.textContent = '☁️ Aguardando lib…'; }
+            setCloudBadge('wait', 'Aguardando biblioteca da nuvem…');
             setTimeout(function() {
                 var sb2 = window.supabase;
                 if (!sb2 || typeof sb2.createClient !== 'function') {
-                    if (badge) { badge.textContent = '☁️ Erro (lib)'; }
+                    setCloudBadge('error', 'Erro ao carregar biblioteca da nuvem');
                     updateCloudPrefsVisibility();
                     initTtsEngine();
                 } else {
@@ -1461,15 +1757,12 @@ var safeStorage = (function() {
             });
         } catch(e) {
             readeraSb = null;
-            if (badge) { badge.textContent = '☁️ Erro (init)'; }
+            setCloudBadge('error', 'Erro ao iniciar cliente da nuvem');
             updateCloudPrefsVisibility();
             initTtsEngine();
             return;
         }
-        if (badge) {
-            badge.textContent = '☁️ Nuvem: ligada';
-            badge.title = 'Apenas chave pública; PDFs em Storage + metadados na tabela documents.';
-        }
+        setCloudBadge('on', 'Nuvem ligada — PDFs em Storage e metadados na base');
         refreshCloudLibrary().then(function() {
             updateCloudChrome();
             if (!cloudUiBound) {
@@ -1483,10 +1776,7 @@ var safeStorage = (function() {
         }).catch(function(err) {
             readeraSb = null;
             var msg = String((err && (err.message || err.error_description)) || '');
-            if (badge) {
-                badge.textContent = '☁️ Erro (rede)';
-                badge.title = msg ? msg.slice(0, 200) : '';
-            }
+            setCloudBadge('error', msg ? ('Erro de rede: ' + msg.slice(0, 180)) : 'Erro de rede na nuvem');
             console.error(err);
             showNotification('Nuvem: falhou ao ligar. Confira config.js e rede. ' + msg.slice(0, 120));
         }).then(function() {
@@ -1652,12 +1942,12 @@ var safeStorage = (function() {
         cloudSyncInFlight = true;
         updateCloudChrome();
         var badge = document.getElementById('cloud-badge');
-        if (badge) { badge.textContent = 'Nuvem: a enviar…'; badge.classList.remove('hidden'); }
+        setCloudBadge('pending', 'Nuvem: a enviar PDF…');
         uploadPdfToCloudInternal(true).then(function() {
-            if (badge) badge.textContent = 'Nuvem: ligada';
+            setCloudBadge('on', 'Nuvem ligada');
         }).catch(function(err) {
             console.warn('Auto-nuvem:', err);
-            if (badge) badge.textContent = 'Nuvem: ligada (toque em Guardar)';
+            setCloudBadge('on', 'Nuvem ligada — toque em ☁️⬆ para guardar');
         }).then(function() {
             cloudSyncInFlight = false;
             updateCloudChrome();
