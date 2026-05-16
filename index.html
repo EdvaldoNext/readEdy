@@ -128,8 +128,85 @@
         .settings-panel label { display: flex; align-items: flex-start; gap: 10px; font-size: 0.88rem; font-weight: 600; margin: 10px 0; cursor: pointer; }
         .settings-panel input[type="checkbox"] { margin-top: 3px; flex-shrink: 0; }
         .settings-panel .panel-hint { font-size: 0.72rem; opacity: 0.72; margin: 2px 0 4px 26px; font-weight: 400; line-height: 1.35; }
-        #btn-show-chrome { display: none; position: fixed; left: 12px; bottom: 12px; z-index: 3500; border: none; border-radius: 999px; padding: 12px 16px; cursor: pointer; font-weight: 600; background: var(--accent); color: #fff; box-shadow: 0 4px 18px rgba(0,0,0,0.35); }
-        body.ui-chrome-hidden #btn-show-chrome { display: block; }
+        /* Botão ☰ fixo — visível na tela de leitura, independente da barra ⏪⏩↔ */
+        #btn-show-chrome {
+            display: none;
+            position: fixed;
+            left: 12px;
+            bottom: 12px;
+            z-index: 3700;
+            pointer-events: auto;
+        }
+        body.ui-chrome-hidden #btn-show-chrome { display: inline-block; }
+        /* Barra ⏪ ⏩ ↔ — só na tela de leitura (chrome oculto), nunca sobre Ouvir/Voz */
+        body:not(.ui-chrome-hidden) #reader-float-bar { display: none !important; }
+        #reader-float-bar {
+            display: none;
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 12px;
+            z-index: 3600;
+            padding: 0 12px;
+            padding-left: 64px;
+            box-sizing: border-box;
+            pointer-events: none;
+        }
+        .reader-float-bar-track {
+            width: 100%;
+            pointer-events: none;
+            -webkit-box-pack: end;
+            -webkit-justify-content: flex-end;
+            -ms-flex-pack: end;
+            justify-content: flex-end;
+            -webkit-box-align: center;
+            -webkit-align-items: center;
+            -ms-flex-align: center;
+            align-items: center;
+            gap: 10px;
+        }
+        .reader-float-bar-mid {
+            display: -webkit-box;
+            display: -webkit-flex;
+            display: -ms-flexbox;
+            display: flex;
+            gap: 10px;
+            pointer-events: none;
+        }
+        .reader-chrome-fab,
+        #reader-float-bar .reader-float-btn {
+            display: none;
+            pointer-events: auto;
+            border: none;
+            border-radius: 999px;
+            padding: 0;
+            width: 44px;
+            height: 44px;
+            line-height: 44px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1.15rem;
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+            -webkit-flex-shrink: 0;
+            -ms-flex-negative: 0;
+            flex-shrink: 0;
+        }
+        #btn-tts-skip-back, #btn-tts-skip-fwd, #btn-toggle-layout { display: none; }
+        body.ui-chrome-hidden.pdf-is-open #btn-tts-skip-back,
+        body.ui-chrome-hidden.pdf-is-open #btn-tts-skip-fwd { display: inline-block; }
+        /* Barra flutuante na tela de leitura — todas as larguras de ecrã */
+        body.ui-chrome-hidden.pdf-is-open #reader-float-bar {
+            display: block !important;
+        }
+        body.ui-chrome-hidden.pdf-is-open .reader-float-bar-track {
+            display: -webkit-box !important;
+            display: -webkit-flex !important;
+            display: -ms-flexbox !important;
+            display: flex !important;
+        }
         @media (max-width: 640px) {
             header { flex-direction: column; align-items: stretch; }
             header > span:first-of-type { text-align: center; }
@@ -149,6 +226,61 @@
         }
         @media (pointer: coarse) {
             .btn { min-height: 44px; padding: 10px 16px; }
+        }
+
+        /* ── Modo leitura larga (mobile): PDF mais largo, SEM girar a UI ── */
+        @media screen and (max-width: 768px) {
+            body.ui-chrome-hidden.pdf-is-open #btn-toggle-layout { display: inline-block !important; }
+
+            /* Tela cheia de leitura — conteúdo permanece na horizontal */
+            #app-container.forced-landscape {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                width: 100% !important;
+                height: 100% !important;
+                margin: 0 !important;
+                -webkit-transform: none !important;
+                transform: none !important;
+                overflow: hidden !important;
+            }
+
+            #app-container.forced-landscape header,
+            #app-container.forced-landscape #sidebar,
+            #app-container.forced-landscape .sidebar-books-list {
+                display: none !important;
+            }
+
+            #app-container.forced-landscape #tts-text-panel {
+                display: none !important;
+            }
+
+            #app-container.forced-landscape #main-container,
+            #app-container.forced-landscape #viewer-container {
+                width: 100% !important;
+                height: 100% !important;
+                -webkit-box-flex: 1 !important;
+                -webkit-flex: 1 !important;
+                flex: 1 !important;
+            }
+
+            #app-container.forced-landscape #viewer-container {
+                padding: 2px 4px !important;
+                padding-bottom: 88px !important;
+            }
+
+            #app-container.forced-landscape #pdf-render-area {
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+
+            #app-container.forced-landscape #pdf-render-area .pdf-page-wrap {
+                margin-left: auto !important;
+                margin-right: auto !important;
+                max-width: 100% !important;
+            }
         }
     </style>
 </head>
@@ -214,7 +346,16 @@
 </div>
 
 <div id="tts-toast" role="status" aria-live="polite"></div>
-<button type="button" id="btn-show-chrome" title="Mostrar barras de ferramentas">☰ Mostrar controles</button>
+<button type="button" id="btn-show-chrome" class="reader-chrome-fab" title="Mostrar barras de ferramentas" aria-label="Mostrar controles">☰</button>
+<div id="reader-float-bar" aria-label="Controles de leitura sobre o PDF">
+    <div class="reader-float-bar-track">
+        <div class="reader-float-bar-mid">
+            <button type="button" id="btn-tts-skip-back" class="reader-float-btn" title="Retroceder 15 segundos" aria-label="Retroceder 15 segundos">⏪</button>
+            <button type="button" id="btn-tts-skip-fwd" class="reader-float-btn" title="Avançar 15 segundos" aria-label="Avançar 15 segundos">⏩</button>
+        </div>
+        <button type="button" id="btn-toggle-layout" class="reader-float-btn" title="Modo leitura larga (página em tela cheia)" aria-label="Modo leitura larga">↔</button>
+    </div>
+</div>
 
 <div id="nav-controls" class="controls-bottom hidden">
     <div class="controls-inner">
@@ -449,6 +590,8 @@ var safeStorage = (function() {
     var ttsLastFullTextLen = 0;
     var ttsAbsCharEnd = 0;
     var ttsScrollHighlightRaf = null;
+    var ttsProxyResumeFrac = 0;
+    var TTS_SKIP_SECONDS = 15;
 
     var fileInput = document.getElementById('file-input');
     var loading = document.getElementById('loading');
@@ -768,6 +911,7 @@ var safeStorage = (function() {
 
         var resumeFrac = (ttsResumePageNum === capturedPage && ttsResumeCharOffset > 0 && capturedText.length > 0)
             ? ttsResumeCharOffset / capturedText.length : 0;
+        ttsProxyResumeFrac = resumeFrac;
 
         fullPageText       = capturedText;
         ttsLastFullTextLen = capturedText.length;
@@ -787,9 +931,28 @@ var safeStorage = (function() {
             updateHighlight(charIdx, 8);
         };
 
+        function seekProxyToResumeFrac() {
+            if (resumeFrac <= 0 || !ttsAudioEl || !(ttsAudioEl.duration > 0)) return;
+            try {
+                var t = resumeFrac * ttsAudioEl.duration;
+                if (isFinite(t) && t > 0.05) ttsAudioEl.currentTime = t;
+            } catch (e) {}
+        }
+        if (ttsAudioEl.readyState >= 1) {
+            seekProxyToResumeFrac();
+        } else {
+            var seekMetaDone = false;
+            ttsAudioEl.addEventListener('loadedmetadata', function onMeta() {
+                if (seekMetaDone) return;
+                seekMetaDone = true;
+                seekProxyToResumeFrac();
+            });
+        }
+
         ttsAudioEl.onplay = function() {
             isReading = true;
             speakLock = false;
+            updateTtsSeekButtonsVisible();
             var btn = document.getElementById('btn-tts');
             if (btn) { btn.textContent = '⏹ Parar'; btn.className = 'btn btn-stop'; }
             if ('mediaSession' in navigator) {
@@ -958,13 +1121,18 @@ var safeStorage = (function() {
         scrollTtsHighlightIntoView();
     }
 
+    function syncChromeHiddenState() {
+        var hidePref = safeStorage.getItem('readera-hide-chrome') === '1';
+        document.body.classList.toggle('ui-chrome-hidden', hidePref && !!pdfDoc);
+    }
+
     function applyUiPrefs() {
         const hide = safeStorage.getItem('readera-hide-chrome') === '1';
         const read = safeStorage.getItem('readera-reading-mode') === '1';
         const sync = safeStorage.getItem('readera-sync-panel') !== '0';
         const autoCloud = safeStorage.getItem(LS_AUTO_CLOUD) !== '0';
         const resumeCloud = safeStorage.getItem(LS_RESUME_CLOUD) !== '0';
-        document.body.classList.toggle('ui-chrome-hidden', hide);
+        syncChromeHiddenState();
         document.body.classList.toggle('reading-mode', read);
         const h = document.getElementById('opt-hide-chrome');
         const r = document.getElementById('opt-reading-mode');
@@ -1039,7 +1207,7 @@ var safeStorage = (function() {
 
         hideCb.addEventListener('change', function() {
             safeStorage.setItem('readera-hide-chrome', hideCb.checked ? '1' : '0');
-            document.body.classList.toggle('ui-chrome-hidden', hideCb.checked);
+            syncChromeHiddenState();
         });
         readCb.addEventListener('change', function() {
             safeStorage.setItem('readera-reading-mode', readCb.checked ? '1' : '0');
@@ -1086,6 +1254,122 @@ var safeStorage = (function() {
         ttsResumePageNum = null;
         ttsLastFullTextLen = 0;
         ttsAbsCharEnd = 0;
+        ttsProxyResumeFrac = 0;
+        updateTtsSeekButtonsVisible();
+    }
+
+    function updateTtsSeekButtonsVisible() {
+        var ready = false;
+        if (pdfDoc) {
+            if (ttsPageCache.pageNum === pageNum && (ttsPageCache.text || '').trim()) ready = true;
+            if (isReading) ready = true;
+            if (ttsResumePageNum === pageNum && ttsResumeCharOffset > 0) ready = true;
+        }
+        if (ready) document.body.classList.add('tts-seek-ready');
+        else document.body.classList.remove('tts-seek-ready');
+    }
+
+    function getTtsPageTextLen() {
+        var text = '';
+        if (ttsPageCache.pageNum === pageNum && ttsPageCache.text) text = ttsPageCache.text;
+        else if (fullPageText) text = fullPageText;
+        return text.length;
+    }
+
+    function getTtsPlaybackCharIndex() {
+        var len = getTtsPageTextLen();
+        if (len <= 0) return 0;
+        if (isReading && ttsEngine === 'proxy' && ttsAudioEl && ttsAudioEl.duration > 0) {
+            var progress = ttsAudioEl.currentTime / ttsAudioEl.duration;
+            return Math.floor((ttsProxyResumeFrac + progress * (1 - ttsProxyResumeFrac)) * len);
+        }
+        if (ttsAbsCharEnd > 0) return ttsAbsCharEnd;
+        if (ttsResumePageNum === pageNum && ttsResumeCharOffset > 0) return ttsResumeCharOffset;
+        return 0;
+    }
+
+    function proxyTimeFromCharIndex(charIdx, textLen, duration, resumeFrac) {
+        if (textLen <= 0 || duration <= 0) return 0;
+        var frac = Math.max(0, Math.min(1, charIdx / textLen));
+        var span = 1 - resumeFrac;
+        if (span < 0.001) return 0;
+        var progress = (frac - resumeFrac) / span;
+        progress = Math.max(0, Math.min(1, progress));
+        return progress * duration;
+    }
+
+    function applyTtsSeekCharIndex(charIdx) {
+        var text = (ttsPageCache.pageNum === pageNum && ttsPageCache.text) ? ttsPageCache.text : (fullPageText || '');
+        var len = text.length;
+        if (len <= 0) {
+            showTtsToast('Sem texto nesta página para posicionar a leitura.');
+            return false;
+        }
+        charIdx = Math.max(0, Math.min(len, charIdx | 0));
+        ttsResumeCharOffset = charIdx;
+        ttsResumePageNum = pageNum;
+        ttsAbsCharEnd = charIdx;
+        ttsLastFullTextLen = len;
+        updateHighlight(charIdx, 8);
+        scrollTtsHighlightIntoView();
+        updateTtsButtonLabel();
+        updateTtsSeekButtonsVisible();
+        return true;
+    }
+
+    function skipTtsBySeconds(deltaSec) {
+        if (!pdfDoc) return;
+        var text = (ttsPageCache.pageNum === pageNum && ttsPageCache.text) ? ttsPageCache.text : '';
+        if (!text.trim()) {
+            showTtsToast('Abra a leitura em voz alta (Ouvir) nesta página primeiro.');
+            return;
+        }
+        var len = text.length;
+        var pos = getTtsPlaybackCharIndex();
+        var rate = rateRange ? Number(rateRange.value) : 1;
+        if (!isFinite(rate) || rate <= 0) rate = 1;
+
+        if (isReading && ttsEngine === 'proxy' && ttsAudioEl && ttsAudioEl.duration > 0) {
+            var dur = ttsAudioEl.duration;
+            var newTime = ttsAudioEl.currentTime + deltaSec;
+            if (newTime < 0) newTime = 0;
+            if (newTime > dur) newTime = dur;
+            try { ttsAudioEl.currentTime = newTime; } catch (e) {}
+            var charIdx = Math.floor((ttsProxyResumeFrac + (newTime / dur) * (1 - ttsProxyResumeFrac)) * len);
+            ttsAbsCharEnd = charIdx;
+            ttsResumeCharOffset = charIdx;
+            ttsResumePageNum = pageNum;
+            updateHighlight(charIdx, 8);
+            scrollTtsHighlightIntoView();
+            return;
+        }
+
+        var approxChars = Math.round(TTS_SKIP_SECONDS * 14 * rate);
+        if (deltaSec < 0) approxChars = -approxChars;
+        var newPos = pos + approxChars;
+        if (newPos < 0) newPos = 0;
+        if (newPos > len) newPos = len;
+        if (!applyTtsSeekCharIndex(newPos)) return;
+
+        if (isReading) {
+            if (ttsEngine === 'proxy' && ttsAudioEl && ttsAudioEl.duration > 0) {
+                var dur2 = ttsAudioEl.duration;
+                var t2 = proxyTimeFromCharIndex(newPos, len, dur2, ttsProxyResumeFrac);
+                try { ttsAudioEl.currentTime = t2; } catch (e) {}
+                if (ttsAudioEl.paused) {
+                    var pp = ttsAudioEl.play();
+                    if (pp && typeof pp.then === 'function') {
+                        pp.then(function() {}, function() {});
+                    }
+                }
+            } else {
+                if (_wsSynth) { try { _wsSynth.cancel(); } catch (e) {} }
+                isReading = false;
+                currentUtterance = null;
+                speakLock = false;
+                speakCurrentPage();
+            }
+        }
     }
 
     function updateTtsButtonLabel() {
@@ -1395,6 +1679,8 @@ var safeStorage = (function() {
             cloudDocumentId = opts && opts.documentId ? opts.documentId : null;
             document.getElementById('welcome').classList.add('hidden');
             document.getElementById('nav-controls').classList.remove('hidden');
+            document.body.classList.add('pdf-is-open');
+            syncChromeHiddenState();
             var want = opts && opts.initialPage ? opts.initialPage : 1;
             pageNum = Math.min(Math.max(1, want), pdfDoc.numPages);
             currentPageNum = pageNum;
@@ -1426,6 +1712,25 @@ var safeStorage = (function() {
         reader.readAsArrayBuffer(file);
     };
 
+    /* Largura útil do PDF: em paisagem virtual usa o lado longo do ecrã (não clientWidth pré-giro) */
+    function getPdfFitMaxWidth(viewer) {
+        var appEl = document.getElementById('app-container');
+        if (appEl && appEl.classList.contains('forced-landscape')) {
+            var iw = typeof window.innerWidth === 'number' ? window.innerWidth : 0;
+            var ih = typeof window.innerHeight === 'number' ? window.innerHeight : 0;
+            if (window.visualViewport) {
+                iw = window.visualViewport.width || iw;
+                ih = window.visualViewport.height || ih;
+            }
+            var longEdge = Math.max(iw, ih);
+            return Math.max(280, longEdge - 8);
+        }
+        var rect = viewer.getBoundingClientRect();
+        var innerW = typeof window.innerWidth === 'number' ? window.innerWidth : rect.width;
+        var useW = viewer.clientWidth > 80 ? viewer.clientWidth : Math.max(Math.floor(rect.width), Math.floor(innerW * 0.96));
+        return Math.max(280, Math.min(useW, innerW) - 32);
+    }
+
     function renderPage(num, skipStopTts) {
         if (!pdfjsLib || !pdfDoc) return Promise.resolve();
         if (isReading && !skipStopTts) stopTTS();
@@ -1442,10 +1747,7 @@ var safeStorage = (function() {
 
         return pdfDoc.getPage(num).then(function(page) {
             var viewer = document.getElementById('viewer-container');
-            var rect = viewer.getBoundingClientRect();
-            var innerW = typeof window.innerWidth === 'number' ? window.innerWidth : rect.width;
-            var useW = viewer.clientWidth > 80 ? viewer.clientWidth : Math.max(Math.floor(rect.width), Math.floor(innerW * 0.96));
-            var maxW = Math.max(280, Math.min(useW, innerW) - 32);
+            var maxW = getPdfFitMaxWidth(viewer);
             var vp1 = page.getViewport({ scale: 1 });
             var fit = maxW / vp1.width;
             var sharpen = window.devicePixelRatio > 1 ? 1.22 : 1;
@@ -1495,6 +1797,7 @@ var safeStorage = (function() {
                 pdfTextLayerSpans = buildPdfTextLayer(viewport, textContent, textLayer);
                 var ttsBuilt = buildTtsTextAndRanges(textContent.items || []);
                 ttsPageCache = { pageNum: num, text: ttsBuilt.text, ranges: ttsBuilt.ranges };
+                updateTtsSeekButtonsVisible();
 
                 document.getElementById('page-info').textContent = num + ' / ' + pdfDoc.numPages;
                 document.getElementById('viewer-container').scrollTop = 0;
@@ -1511,6 +1814,7 @@ var safeStorage = (function() {
         }).then(function() {
             isRendering = false;
             if (btnTts) btnTts.disabled = false;
+            updateLayoutToggleVisible();
         });
     }
 
@@ -1593,6 +1897,7 @@ var safeStorage = (function() {
         ttsPanel.classList.add('hidden');
         ttsLiveText.textContent = '';
         updateTtsButtonLabel();
+        updateTtsSeekButtonsVisible();
         ttsStopRequested = false;
     }
 
@@ -1874,6 +2179,74 @@ var safeStorage = (function() {
         readeraResizeTimer = setTimeout(function() {
             renderPage(pageNum, true);
         }, 280);
+    });
+
+    function updateLayoutToggleVisible() {
+        if (pdfDoc) {
+            document.body.classList.add('pdf-is-open');
+        } else {
+            document.body.classList.remove('pdf-is-open');
+        }
+    }
+
+    /* Modo leitura larga: PDF usa o lado longo do ecrã, texto permanece horizontal */
+    function toggleVirtualLandscape() {
+        var appContainer = document.getElementById('app-container');
+        var btnLayout = document.getElementById('btn-toggle-layout');
+        if (!appContainer) return;
+
+        var ativar = !appContainer.classList.contains('forced-landscape');
+        if (ativar) {
+            appContainer.classList.add('forced-landscape');
+            if (btnLayout) {
+                btnLayout.textContent = '↩';
+                btnLayout.title = 'Voltar ao tamanho normal da página';
+                btnLayout.setAttribute('aria-label', 'Voltar ao tamanho normal');
+            }
+        } else {
+            appContainer.classList.remove('forced-landscape');
+            if (btnLayout) {
+                btnLayout.textContent = '↔';
+                btnLayout.title = 'Modo leitura larga (página em tela cheia)';
+                btnLayout.setAttribute('aria-label', 'Modo leitura larga');
+            }
+        }
+
+        if (typeof renderPage !== 'function' || !pdfDoc) return;
+
+        function relayoutPdf() {
+            renderPage(currentPageNum, isReading);
+        }
+
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(function() {
+                requestAnimationFrame(function() {
+                    setTimeout(relayoutPdf, 50);
+                    setTimeout(relayoutPdf, 250);
+                });
+            });
+        } else {
+            setTimeout(relayoutPdf, 100);
+            setTimeout(relayoutPdf, 350);
+        }
+    }
+
+    var btnToggleLayout = document.getElementById('btn-toggle-layout');
+    if (btnToggleLayout) {
+        btnToggleLayout.addEventListener('click', toggleVirtualLandscape);
+    }
+
+    var btnTtsSkipBack = document.getElementById('btn-tts-skip-back');
+    var btnTtsSkipFwd = document.getElementById('btn-tts-skip-fwd');
+    if (btnTtsSkipBack) {
+        btnTtsSkipBack.addEventListener('click', function() { skipTtsBySeconds(-TTS_SKIP_SECONDS); });
+    }
+    if (btnTtsSkipFwd) {
+        btnTtsSkipFwd.addEventListener('click', function() { skipTtsBySeconds(TTS_SKIP_SECONDS); });
+    }
+
+    window.addEventListener('resize', function() {
+        updateLayoutToggleVisible();
     });
 
     initSupabaseClient();
