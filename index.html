@@ -654,6 +654,62 @@ var safeStorage = (function() {
         return url;
     }
 
+    /* TVs e alguns browsers falham com URLs GET enormes → POST + Blob */
+    function _ttsUrlTooLongForGet(text, voice, rate) {
+        var probe = _getTtsStreamUrl(text, voice, rate);
+        return probe.length > 1800;
+    }
+
+    var _ttsBlobUrlCache = null;
+
+    function _revokeTtsBlobUrl() {
+        if (_ttsBlobUrlCache) {
+            try { URL.revokeObjectURL(_ttsBlobUrlCache); } catch(e) {}
+            _ttsBlobUrlCache = null;
+        }
+    }
+
+    function _fetchTtsAudioUrl(text, voice, rate, onOk, onErr) {
+        var cfg = window.READERA_SUPABASE;
+        if (!_ttsUrlTooLongForGet(text, voice, rate)) {
+            onOk(_getTtsStreamUrl(text, voice, rate));
+            return;
+        }
+        if (!ttsProxyUrl || !cfg || !cfg.anonKey) {
+            onErr('Proxy TTS não configurado.');
+            return;
+        }
+        var MAX = 4000;
+        var sendText = text.length > MAX ? text.slice(0, MAX) : text;
+        fetch(ttsProxyUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': cfg.anonKey,
+                'Authorization': 'Bearer ' + cfg.anonKey
+            },
+            body: JSON.stringify({
+                text: sendText,
+                voice: voice || 'pt-BR-FranciscaNeural',
+                rate: rate || 1.0
+            })
+        }).then(function(resp) {
+            if (!resp.ok) {
+                return resp.text().then(function(t) {
+                    throw new Error('TTS HTTP ' + resp.status + (t ? ': ' + t.slice(0, 120) : ''));
+                });
+            }
+            return resp.blob();
+        }).then(function(blob) {
+            if (!blob || blob.size < 80) throw new Error('TTS: áudio vazio');
+            _revokeTtsBlobUrl();
+            _ttsBlobUrlCache = URL.createObjectURL(blob);
+            onOk(_ttsBlobUrlCache);
+        }).catch(function(e) {
+            onErr(e && e.message ? e.message : String(e));
+        });
+    }
+
     /* Pre-fetch: define src + load() para o browser começar a bufferizar.
        Não requer gesto do utilizador. play() é feito depois, no gesto. */
     function preFetchTtsAudio(num, text) {
@@ -1550,6 +1606,7 @@ var safeStorage = (function() {
             ttsAudioEl.onerror = null; ttsAudioEl.onplay = null;
             ttsAudioEl.src = '';
         }
+        _revokeTtsBlobUrl();
         /* WebSpeech */
         if (_wsSynth) { try { _wsSynth.cancel(); } catch(e) {} }
         _clearTtsWatchdog();
@@ -1603,8 +1660,12 @@ var safeStorage = (function() {
             if (!text.trim()) { showTtsToast('Esta página não tem texto legível.'); return Promise.resolve(); }
             var voice = voiceSelect ? voiceSelect.value : 'pt-BR-FranciscaNeural';
             var rate  = Number(rateRange.value);
-            var url   = _getTtsStreamUrl(text, voice, rate);
-            _playTtsUrl(url, ttsPageCache.text || '', ttsPageCache.ranges || [], pageNum);
+            _fetchTtsAudioUrl(text, voice, rate, function(url) {
+                _playTtsUrl(url, ttsPageCache.text || '', ttsPageCache.ranges || [], pageNum);
+            }, function(err) {
+                console.error('[TTS proxy]', err);
+                showTtsToast('Erro no servidor TTS. Verifique o proxy Supabase.');
+            });
             return Promise.resolve();
         }
 
@@ -1639,14 +1700,16 @@ var safeStorage = (function() {
         if (!pdfDoc || isRendering) return;
 
         if (ttsEngine === 'proxy') {
-            /* Caminho síncrono: a URL de streaming é construída localmente,
-               sem fetch() — compatível com todos os players de TV. */
             var textProxy = ttsPageCache.pageNum === pageNum ? (ttsPageCache.text || '') : '';
             if (!textProxy.trim()) { showTtsToast('Esta página não tem texto legível.'); return; }
             var voiceProxy = voiceSelect ? voiceSelect.value : 'pt-BR-FranciscaNeural';
             var rateProxy  = Number(rateRange.value);
-            var urlProxy   = _getTtsStreamUrl(textProxy, voiceProxy, rateProxy);
-            _playTtsUrl(urlProxy, ttsPageCache.text || '', ttsPageCache.ranges || [], pageNum);
+            _fetchTtsAudioUrl(textProxy, voiceProxy, rateProxy, function(url) {
+                _playTtsUrl(url, ttsPageCache.text || '', ttsPageCache.ranges || [], pageNum);
+            }, function(err) {
+                console.error('[TTS proxy]', err);
+                showTtsToast('Erro no servidor TTS (500). Tente de novo.');
+            });
             return;
         }
 
