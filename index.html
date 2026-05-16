@@ -642,10 +642,16 @@ var safeStorage = (function() {
     function _getTtsStreamUrl(text, voice, rate) {
         var MAX = 4000;
         var sendText = text.length > MAX ? text.slice(0, MAX) : text;
-        return ttsProxyUrl
+        var cfg = window.READERA_SUPABASE;
+        var url = ttsProxyUrl
             + '?text='  + encodeURIComponent(sendText)
             + '&voice=' + encodeURIComponent(voice || 'pt-BR-FranciscaNeural')
             + '&rate='  + (rate || 1.0);
+        /* Supabase exige apikey na URL quando <audio src> não envia cabeçalhos */
+        if (cfg && cfg.anonKey) {
+            url += '&apikey=' + encodeURIComponent(cfg.anonKey);
+        }
+        return url;
     }
 
     /* Pre-fetch: define src + load() para o browser começar a bufferizar.
@@ -659,6 +665,8 @@ var safeStorage = (function() {
         if (!ttsAudioEl) {
             ttsAudioEl = document.createElement('audio');
             ttsAudioEl.preload = 'auto';
+            ttsAudioEl.setAttribute('playsinline', '');
+            ttsAudioEl.setAttribute('webkit-playsinline', '');
             document.body.appendChild(ttsAudioEl);
         }
         ttsAudioEl.src = url;
@@ -686,6 +694,8 @@ var safeStorage = (function() {
         if (!ttsAudioEl) {
             ttsAudioEl = document.createElement('audio');
             ttsAudioEl.preload = 'auto';
+            ttsAudioEl.setAttribute('playsinline', '');
+            ttsAudioEl.setAttribute('webkit-playsinline', '');
             document.body.appendChild(ttsAudioEl);
         }
 
@@ -722,9 +732,11 @@ var safeStorage = (function() {
         ttsAudioEl.onplay = function() {
             isReading = true;
             speakLock = false;
-            updateMediaSession(currentBookTitle, currentPageNum);
             var btn = document.getElementById('btn-tts');
             if (btn) { btn.textContent = '⏹ Parar'; btn.className = 'btn btn-stop'; }
+            if ('mediaSession' in navigator) {
+                try { navigator.mediaSession.playbackState = 'playing'; } catch(e) {}
+            }
         };
 
         ttsAudioEl.onended = function() {
@@ -760,8 +772,14 @@ var safeStorage = (function() {
         };
 
         var pp = ttsAudioEl.play();
+        updateMediaSession(currentBookTitle, currentPageNum);
         if (pp && typeof pp.then === 'function') {
-            pp.catch(function(err) {
+            pp.then(function() {
+                updateMediaSession(currentBookTitle, currentPageNum);
+                if ('mediaSession' in navigator) {
+                    try { navigator.mediaSession.playbackState = 'playing'; } catch(e) {}
+                }
+            }).catch(function(err) {
                 console.warn('[TTS] play() bloqueado:', err);
                 stopTTS();
                 _audioUnlocked = false;
