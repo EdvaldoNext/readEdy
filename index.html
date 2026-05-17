@@ -88,6 +88,7 @@
         .text-layer span { position: absolute; color: transparent; white-space: pre; transform-origin: 0 0; box-sizing: content-box; }
         .text-layer span.tts-active { background: rgba(255, 214, 74, 0.68); border-radius: 2px; box-shadow: 0 0 0 1px rgba(255, 180, 0, 0.35); }
         body.dark .text-layer span.tts-active { background: rgba(212, 168, 42, 0.62); box-shadow: 0 0 0 1px rgba(255, 200, 80, 0.25); }
+        body.tts-paused .text-layer span.tts-active { box-shadow: 0 0 0 2px rgba(255, 140, 0, 0.55); }
         .controls-bottom { position: fixed; bottom: 0; left: 0; right: 0; background: #1a1a1a; color: #eee; padding: 12px 14px 16px; z-index: 1000; box-shadow: 0 -4px 20px rgba(0,0,0,0.25); }
         body.ui-chrome-hidden .controls-bottom { display: none; }
         .controls-inner { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; width: 100%; box-sizing: border-box; }
@@ -703,7 +704,7 @@
                         </div>
                     </div>
                     <label class="settings-row"><input type="checkbox" id="continuous-read" checked><span class="settings-row-text">Ler em sequência (próximas páginas)</span></label>
-                    <p class="panel-hint">Quando a página terminar, avança automaticamente para a seguinte.</p>
+                    <p class="panel-hint">Só avança quando o áudio da página terminar de verdade (não ao pausar).</p>
                 </section>
                 <p class="sr-hint settings-panel sr-hint-block">Atalhos: ← → mudam página · Espaço ouvir/parar na barra inferior</p>
                 <section class="settings-group" id="settings-group-cloud">
@@ -975,6 +976,13 @@ var safeStorage = (function() {
     var ttsScrollHighlightRaf = null;
     var ttsProxyResumeFrac = 0;
     var TTS_SKIP_SECONDS = 15;
+    var TTS_HIGHLIGHT_MS = 110;
+    var ttsPdfHighlightLast = { start: -1, end: -1 };
+    var ttsNextPageCache = { pageNum: null, text: '', ranges: [] };
+    var ttsPendingRenderPage = null;
+    var ttsContinuousAdvanceLock = false;
+    var ttsProxyEndHandled = false;
+    var ttsProxyEndFallbackTimer = null;
 
     var fileInput = document.getElementById('file-input');
     var loading = document.getElementById('loading');
@@ -1282,40 +1290,178 @@ var safeStorage = (function() {
         }
     }
 
-    /* Reproduz a URL de streaming e gerencia todo o ciclo de vida do áudio */
-    function _playTtsUrl(url, capturedText, capturedRanges, capturedPage) {
-        if (!url) { showTtsToast('URL de áudio não disponível.'); return; }
+    function ensureTtsHighlightState() {
+        if (ttsPageCache.pageNum === pageNum && ttsPageCache.text) {
+            if (!fullPageText) fullPageText = ttsPageCache.text;
+            if (!ttsCharRanges.length) ttsCharRanges = ttsPageCache.ranges || [];
+            ttsLastFullTextLen = fullPageText.length;
+        }
+    }
 
-        if (!ttsAudioEl) {
-            ttsAudioEl = document.createElement('audio');
-            ttsAudioEl.preload = 'auto';
-            ttsAudioEl.setAttribute('playsinline', '');
-            ttsAudioEl.setAttribute('webkit-playsinline', '');
-            document.body.appendChild(ttsAudioEl);
+    function isAppInBackground() {
+        return document.hidden || document.visibilityState === 'hidden';
+    }
+
+    function ttsShouldAutoAdvancePage(capturedPage, opts) {
+        opts = opts || {};
+        var contEl = document.getElementById('continuous-read');
+        if (!contEl || !contEl.checked) return false;
+        if (pageNum !== capturedPage || !pdfDoc || pageNum >= pdfDoc.numPages) return false;
+        if (document.body.classList.contains('tts-paused')) return false;
+        if (opts.fromEnded) return true;
+        if (ttsEngine === 'proxy' && ttsAudioEl && ttsAudioEl.duration > 0) {
+            return ttsAudioEl.currentTime >= ttsAudioEl.duration * 0.9;
+        }
+        return true;
+    }
+
+    function prefetchNextPageForContinuous(fromPage) {
+        if (!pdfDoc || ttsEngine !== 'proxy') return;
+        var contEl = document.getElementById('continuous-read');
+        if (!contEl || !contEl.checked) return;
+        var next = fromPage + 1;
+        if (next > pdfDoc.numPages || ttsNextPageCache.pageNum === next) return;
+        pdfDoc.getPage(next).then(function(page) { return page.getTextContent(); }).then(function(tc) {
+            var built = buildTtsTextAndRanges(tc.items || []);
+            ttsNextPageCache = { pageNum: next, text: built.text, ranges: built.ranges };
+            if (built.text && built.text.trim()) preFetchTtsAudio(next, built.text);
+        }).catch(function() {});
+    }
+
+    function ttsPreparePageForBackgroundRead(num) {
+        var pi = document.getElementById('page-info');
+        if (pi && pdfDoc) pi.textContent = num + ' / ' + pdfDoc.numPages;
+        syncPageJumpInput();
+        updateMediaSession(currentBookTitle, num);
+        scheduleCloudProgress();
+        ttsPendingRenderPage = num;
+
+        if (ttsNextPageCache.pageNum === num && ttsNextPageCache.text) {
+            ttsPageCache = { pageNum: num, text: ttsNextPageCache.text, ranges: ttsNextPageCache.ranges || [] };
+            ttsNextPageCache = { pageNum: null, text: '', ranges: [] };
+            return Promise.resolve();
+        }
+        if (ttsPageCache.pageNum === num && ttsPageCache.text) return Promise.resolve();
+
+        return pdfDoc.getPage(num).then(function(page) { return page.getTextContent(); }).then(function(textContent) {
+            var built = buildTtsTextAndRanges(textContent.items || []);
+            ttsPageCache = { pageNum: num, text: built.text, ranges: built.ranges };
+            if (built.text && built.text.trim() && ttsEngine === 'proxy') preFetchTtsAudio(num, built.text);
+        });
+    }
+
+    function ttsAfterPagePlaybackFinished(capturedPage) {
+        if (ttsContinuousAdvanceLock) return Promise.resolve();
+        if (!ttsShouldAutoAdvancePage(capturedPage, { fromEnded: true })) {
+            resetTtsBookmark();
+            speakLock = false;
+            setTtsButtonsState('idle');
+            updateTtsButtonLabel();
+            return Promise.resolve();
+        }
+        var next = capturedPage + 1;
+        if (!pdfDoc || next > pdfDoc.numPages) {
+            resetTtsBookmark();
+            speakLock = false;
+            setTtsButtonsState('idle');
+            updateTtsButtonLabel();
+            return Promise.resolve();
         }
 
-        /* Só trocar src se necessário — evita interromper buffer já iniciado */
-        if (ttsAudioEl.src !== url) {
-            ttsAudioEl.src = url;
-            try { ttsAudioEl.load(); } catch(e) {}
-        }
+        ttsContinuousAdvanceLock = true;
+        resetTtsBookmark();
+        speakLock = false;
+        isReading = false;
+        currentUtterance = null;
+        pageNum = next;
+        currentPageNum = pageNum;
+        ttsNextPageCache = { pageNum: null, text: '', ranges: [] };
 
-        ttsAudioEl.ontimeupdate = null; ttsAudioEl.onended = null;
-        ttsAudioEl.onerror = null; ttsAudioEl.onplay = null;
+        var done = function() {
+            setTimeout(function() { ttsContinuousAdvanceLock = false; }, 400);
+        };
+
+        var chain;
+        if (isAppInBackground()) {
+            chain = ttsPreparePageForBackgroundRead(pageNum).then(function() { return speakCurrentPage(); });
+        } else {
+            ttsPendingRenderPage = null;
+            chain = renderPage(pageNum, true).then(function() { return speakCurrentPage(); });
+        }
+        return chain.then(done, function(err) {
+            console.warn('[TTS] avanço contínuo:', err);
+            done();
+            updateTtsButtonLabel();
+        });
+    }
+
+    function flushTtsPendingRender() {
+        if (!pdfDoc || !ttsPendingRenderPage || isRendering) return;
+        if (ttsPendingRenderPage !== pageNum) return;
+        if (isAppInBackground()) return;
+        var n = ttsPendingRenderPage;
+        ttsPendingRenderPage = null;
+        renderPage(n, true).catch(function() {});
+    }
+
+    function _bindProxyTtsPlayback(url, capturedText, capturedRanges, capturedPage, opts) {
+        opts = opts || {};
+        var skipSeek = !!opts.skipSeek;
+        var autoPlay = opts.autoPlay !== false;
+
+        ttsAudioEl.ontimeupdate = null;
+        ttsAudioEl.onended = null;
+        ttsAudioEl.onerror = null;
+        ttsAudioEl.onplay = null;
 
         var resumeFrac = (ttsResumePageNum === capturedPage && ttsResumeCharOffset > 0 && capturedText.length > 0)
             ? ttsResumeCharOffset / capturedText.length : 0;
+        if (skipSeek && ttsAudioEl.duration > 0) {
+            resumeFrac = Math.max(0, Math.min(1, ttsAudioEl.currentTime / ttsAudioEl.duration));
+        }
         ttsProxyResumeFrac = resumeFrac;
 
-        fullPageText       = capturedText;
+        fullPageText = capturedText;
         ttsLastFullTextLen = capturedText.length;
-        ttsCharRanges      = capturedRanges;
-        ttsAbsCharEnd      = ttsResumeCharOffset > 0 ? ttsResumeCharOffset : 0;
+        ttsCharRanges = capturedRanges;
+        ttsAbsCharEnd = Math.floor(resumeFrac * capturedText.length);
 
+        ttsProxyEndHandled = false;
+        if (ttsProxyEndFallbackTimer != null) {
+            clearTimeout(ttsProxyEndFallbackTimer);
+            ttsProxyEndFallbackTimer = null;
+        }
+
+        var hlLast = 0;
+        var prefetchNextDone = false;
         ttsAudioEl.ontimeupdate = function() {
             if (!isReading || ttsAudioEl.duration <= 0) return;
             var progress = ttsAudioEl.currentTime / ttsAudioEl.duration;
-            var charIdx  = Math.floor((resumeFrac + progress * (1 - resumeFrac)) * capturedText.length);
+            if (!prefetchNextDone && progress >= 0.72) {
+                prefetchNextDone = true;
+                prefetchNextPageForContinuous(capturedPage);
+            }
+            if (progress >= 0.985 && !ttsProxyEndHandled) {
+                if (ttsProxyEndFallbackTimer != null) clearTimeout(ttsProxyEndFallbackTimer);
+                ttsProxyEndFallbackTimer = setTimeout(function() {
+                    ttsProxyEndFallbackTimer = null;
+                    if (ttsProxyEndHandled || pageNum !== capturedPage) return;
+                    if (!isReading && !ttsAudioEl) return;
+                    var ended = ttsAudioEl.ended;
+                    var atEnd = ttsAudioEl.duration > 0 && ttsAudioEl.currentTime >= ttsAudioEl.duration * 0.97;
+                    if (ended || atEnd) {
+                        ttsProxyEndHandled = true;
+                        isReading = false;
+                        ttsAbsCharEnd = capturedText.length;
+                        setTtsButtonsState('idle');
+                        ttsAfterPagePlaybackFinished(capturedPage);
+                    }
+                }, isAppInBackground() ? 80 : 350);
+            }
+            var now = Date.now();
+            if (now - hlLast < TTS_HIGHLIGHT_MS) return;
+            hlLast = now;
+            var charIdx = Math.floor((resumeFrac + progress * (1 - resumeFrac)) * capturedText.length);
             ttsAbsCharEnd = charIdx;
             updateHighlight(charIdx, 8);
         };
@@ -1327,46 +1473,42 @@ var safeStorage = (function() {
                 if (isFinite(t) && t > 0.05) ttsAudioEl.currentTime = t;
             } catch (e) {}
         }
-        if (ttsAudioEl.readyState >= 1) {
-            seekProxyToResumeFrac();
-        } else {
-            var seekMetaDone = false;
-            ttsAudioEl.addEventListener('loadedmetadata', function onMeta() {
-                if (seekMetaDone) return;
-                seekMetaDone = true;
-                seekProxyToResumeFrac();
-            });
+        if (!skipSeek) {
+            if (ttsAudioEl.readyState >= 1) seekProxyToResumeFrac();
+            else {
+                var seekMetaDone = false;
+                ttsAudioEl.addEventListener('loadedmetadata', function onMeta() {
+                    if (seekMetaDone) return;
+                    seekMetaDone = true;
+                    seekProxyToResumeFrac();
+                });
+            }
         }
 
         ttsAudioEl.onplay = function() {
+            document.body.classList.remove('tts-paused');
             isReading = true;
             speakLock = false;
             updateTtsSeekButtonsVisible();
-            var btn = document.getElementById('btn-tts');
-            if (btn) setTtsButtonsState('playing');
+            setTtsButtonsState('playing');
             if ('mediaSession' in navigator) {
-                try { navigator.mediaSession.playbackState = 'playing'; } catch(e) {}
+                try { navigator.mediaSession.playbackState = 'playing'; } catch (e) {}
             }
         };
 
         ttsAudioEl.onended = function() {
-            if (pageNum !== capturedPage) return;
-            isReading = false; currentUtterance = null;
-            ttsAbsCharEnd = capturedText.length;
-            var btn = document.getElementById('btn-tts');
-            setTtsButtonsState('idle');
-            var contEl  = document.getElementById('continuous-read');
-            var isCont  = contEl && contEl.checked;
-            var hasNext = pdfDoc && pageNum < pdfDoc.numPages;
-            if (isCont && hasNext) {
-                resetTtsBookmark(); speakLock = false;
-                pageNum += 1;
-                currentPageNum = pageNum;
-                renderPage(pageNum, true).then(function() { speakCurrentPage(); });
-            } else {
-                resetTtsBookmark(); speakLock = false;
-                updateTtsButtonLabel();
+            if (pageNum !== capturedPage || ttsProxyEndHandled) return;
+            ttsProxyEndHandled = true;
+            if (ttsProxyEndFallbackTimer != null) {
+                clearTimeout(ttsProxyEndFallbackTimer);
+                ttsProxyEndFallbackTimer = null;
             }
+            isReading = false;
+            currentUtterance = null;
+            ttsAbsCharEnd = capturedText.length;
+            if (!isAppInBackground()) updateHighlight(capturedText.length - 1, 8);
+            setTtsButtonsState('idle');
+            ttsAfterPagePlaybackFinished(capturedPage);
         };
 
         ttsAudioEl.onerror = function() {
@@ -1380,13 +1522,14 @@ var safeStorage = (function() {
             }
         };
 
+        if (!autoPlay) return;
         var pp = ttsAudioEl.play();
         updateMediaSession(currentBookTitle, currentPageNum);
         if (pp && typeof pp.then === 'function') {
             pp.then(function() {
                 updateMediaSession(currentBookTitle, currentPageNum);
                 if ('mediaSession' in navigator) {
-                    try { navigator.mediaSession.playbackState = 'playing'; } catch(e) {}
+                    try { navigator.mediaSession.playbackState = 'playing'; } catch (e) {}
                 }
             }).catch(function(err) {
                 console.warn('[TTS] play() bloqueado:', err);
@@ -1395,6 +1538,41 @@ var safeStorage = (function() {
                 showTtsToast('Toque em Ouvir novamente para iniciar.');
             });
         }
+    }
+
+    function tryResumePausedProxyTts() {
+        if (ttsEngine !== 'proxy' || !ttsAudioEl || !ttsAudioEl.src) return false;
+        if (ttsResumePageNum !== pageNum || ttsResumeCharOffset <= 0) return false;
+        var text = ttsPageCache.pageNum === pageNum ? (ttsPageCache.text || '') : '';
+        var ranges = ttsPageCache.ranges || [];
+        if (!text.trim()) return false;
+        if (ttsAudioEl.duration > 0 && ttsAudioEl.currentTime >= ttsAudioEl.duration - 0.2) return false;
+
+        document.body.classList.remove('tts-paused');
+        isReading = true;
+        _bindProxyTtsPlayback(ttsAudioEl.src, text, ranges, pageNum, { skipSeek: true });
+        return true;
+    }
+
+    /* Reproduz a URL de streaming e gerencia todo o ciclo de vida do áudio */
+    function _playTtsUrl(url, capturedText, capturedRanges, capturedPage) {
+        if (!url) { showTtsToast('URL de áudio não disponível.'); return; }
+
+        if (!ttsAudioEl) {
+            ttsAudioEl = document.createElement('audio');
+            ttsAudioEl.preload = 'auto';
+            ttsAudioEl.setAttribute('playsinline', '');
+            ttsAudioEl.setAttribute('webkit-playsinline', '');
+            document.body.appendChild(ttsAudioEl);
+        }
+
+        if (ttsAudioEl.src !== url) {
+            ttsAudioEl.src = url;
+            try { ttsAudioEl.load(); } catch (e) {}
+        }
+
+        document.body.classList.remove('tts-paused');
+        _bindProxyTtsPlayback(url, capturedText, capturedRanges, capturedPage, {});
     }
 
     function buildTtsTextAndRanges(items) {
@@ -1411,6 +1589,7 @@ var safeStorage = (function() {
     }
 
     function clearPdfHighlight() {
+        ttsPdfHighlightLast = { start: -1, end: -1 };
         if (!pdfTextLayerSpans) return;
         Object.keys(pdfTextLayerSpans).forEach(function(k) {
             var el = pdfTextLayerSpans[k];
@@ -1419,10 +1598,15 @@ var safeStorage = (function() {
     }
 
     function updatePdfReadHighlight(charIndex, charLength) {
-        clearPdfHighlight();
         if (!pdfTextLayerSpans || !ttsCharRanges.length) return;
         var start = Math.max(0, charIndex | 0);
         var end = start + Math.max(1, charLength | 0);
+        if (start === ttsPdfHighlightLast.start && end === ttsPdfHighlightLast.end) return;
+        ttsPdfHighlightLast = { start: start, end: end };
+        Object.keys(pdfTextLayerSpans).forEach(function(k) {
+            var el = pdfTextLayerSpans[k];
+            if (el && el.classList) el.classList.remove('tts-active');
+        });
         var seen = {};
         for (var i = 0; i < ttsCharRanges.length; i++) {
             var r = ttsCharRanges[i];
@@ -1491,7 +1675,7 @@ var safeStorage = (function() {
 
     function updateHighlight(charIndex, charLength) {
         updatePdfReadHighlight(charIndex, charLength);
-        scrollTtsHighlightIntoView();
+        if (isReading) scrollTtsHighlightIntoView();
     }
 
     function syncChromeHiddenState() {
@@ -1584,12 +1768,25 @@ var safeStorage = (function() {
 
     wireSettingsUi();
 
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) flushTtsPendingRender();
+    });
+    window.addEventListener('pageshow', function() {
+        flushTtsPendingRender();
+    });
+
     function resetTtsBookmark() {
         ttsResumeCharOffset = 0;
         ttsResumePageNum = null;
         ttsLastFullTextLen = 0;
         ttsAbsCharEnd = 0;
         ttsProxyResumeFrac = 0;
+        ttsProxyEndHandled = false;
+        if (ttsProxyEndFallbackTimer != null) {
+            clearTimeout(ttsProxyEndFallbackTimer);
+            ttsProxyEndFallbackTimer = null;
+        }
+        document.body.classList.remove('tts-paused');
         updateTtsSeekButtonsVisible();
     }
 
@@ -2112,6 +2309,7 @@ var safeStorage = (function() {
 
             var renderArea = document.getElementById('pdf-render-area');
             renderArea.innerHTML = '';
+            ttsPdfHighlightLast = { start: -1, end: -1 };
 
             var wrap = document.createElement('div');
             wrap.className = 'pdf-page-wrap';
@@ -2240,16 +2438,31 @@ var safeStorage = (function() {
         ttsStopRequested = true;
         isReading = false;
         currentUtterance = null;
-        if (ttsAudioEl && !ttsAudioEl.paused) ttsAudioEl.pause();
-        if (_wsSynth) { try { _wsSynth.cancel(); } catch(e) {} }
-        const cap = ttsLastFullTextLen > 0 ? ttsLastFullTextLen : Math.max(0, ttsAbsCharEnd);
-        ttsResumeCharOffset = Math.min(Math.max(0, ttsAbsCharEnd), cap);
-        ttsResumePageNum = pageNum;
+        ensureTtsHighlightState();
+
+        if (ttsEngine === 'proxy' && ttsAudioEl && ttsAudioEl.duration > 0) {
+            var lenP = fullPageText.length || (ttsPageCache.text || '').length;
+            if (lenP > 0) {
+                var fracP = Math.max(0, Math.min(1, ttsAudioEl.currentTime / ttsAudioEl.duration));
+                var charP = Math.floor((ttsProxyResumeFrac + fracP * (1 - ttsProxyResumeFrac)) * lenP);
+                ttsAbsCharEnd = charP;
+                ttsResumeCharOffset = charP;
+                ttsResumePageNum = pageNum;
+                ttsLastFullTextLen = lenP;
+                ttsProxyResumeFrac = charP / lenP;
+            }
+            if (ttsAudioEl && !ttsAudioEl.paused) ttsAudioEl.pause();
+        } else {
+            var cap = ttsLastFullTextLen > 0 ? ttsLastFullTextLen : Math.max(0, ttsAbsCharEnd);
+            ttsResumeCharOffset = Math.min(Math.max(0, ttsAbsCharEnd), cap);
+            ttsResumePageNum = pageNum;
+            if (_wsSynth) { try { _wsSynth.cancel(); } catch (e) {} }
+        }
+
         speakLock = false;
-        fullPageText = '';
-        ttsCharRanges = [];
-        clearPdfHighlight();
-        updateTtsButtonLabel();
+        document.body.classList.add('tts-paused');
+        if (ttsResumeCharOffset > 0) updateHighlight(ttsResumeCharOffset, 8);
+        setTtsButtonsState('continue');
         updateTtsSeekButtonsVisible();
         ttsStopRequested = false;
     }
@@ -2274,9 +2487,9 @@ var safeStorage = (function() {
         ttsCharRanges = [];
         speakLock = false;
         clearPdfHighlight();
-        const btn = document.getElementById('btn-tts');
         setTtsButtonsState('idle');
         if (resetBookmark) resetTtsBookmark();
+        else document.body.classList.remove('tts-paused');
         updateTtsButtonLabel();
         ttsStopRequested = false;
     }
@@ -2316,10 +2529,16 @@ var safeStorage = (function() {
         if (ttsEngine === 'proxy') {
             var text = ttsPageCache.pageNum === pageNum ? (ttsPageCache.text || '') : '';
             if (!text.trim()) { showTtsToast('Esta página não tem texto legível.'); return Promise.resolve(); }
+            var ranges = ttsPageCache.ranges || [];
+            if (ttsAudioCache.pageNum === pageNum && ttsAudioCache.url && ttsAudioCache.ready) {
+                _playTtsUrl(ttsAudioCache.url, text, ranges, pageNum);
+                return Promise.resolve();
+            }
             var voice = voiceSelect ? voiceSelect.value : 'pt-BR-FranciscaNeural';
             var rate  = Number(rateRange.value);
             _fetchTtsAudioUrl(text, voice, rate, function(url) {
-                _playTtsUrl(url, ttsPageCache.text || '', ttsPageCache.ranges || [], pageNum);
+                ttsAudioCache = { pageNum: pageNum, url: url, ready: true, error: false };
+                _playTtsUrl(url, text, ranges, pageNum);
             }, function(err) {
                 console.error('[TTS proxy]', err);
                 showTtsToast('Erro no servidor TTS. Verifique o proxy Supabase.');
@@ -2356,6 +2575,8 @@ var safeStorage = (function() {
             updateTtsButtonLabel(); return;
         }
         if (!pdfDoc || isRendering) return;
+
+        if (tryResumePausedProxyTts()) return;
 
         if (ttsEngine === 'proxy') {
             var textProxy = ttsPageCache.pageNum === pageNum ? (ttsPageCache.text || '') : '';
@@ -2422,9 +2643,7 @@ var safeStorage = (function() {
             var hasNext0 = pdfDoc && pageNum < pdfDoc.numPages;
             if (isCont0 && hasNext0) {
                 showTtsToast('Página sem texto — avançando...');
-                pageNum += 1;
-                currentPageNum = pageNum;
-                renderPage(pageNum, true).then(function() { speakCurrentPage(); });
+                ttsAfterPagePlaybackFinished(pageNum);
             } else {
                 showTtsToast('Esta página não tem texto legível.');
             }
@@ -2456,8 +2675,10 @@ var safeStorage = (function() {
         utterance.onstart = function() {
             if (currentUtterance !== utterance) return;
             _clearTtsWatchdog(); utteranceStarted = true;
+            document.body.classList.remove('tts-paused');
             ttsAbsCharEnd = utteranceCharOffset; isReading = true; speakLock = false;
-            if (btn) setTtsButtonsState('playing');
+            if (utteranceCharOffset > 0) updateHighlight(utteranceCharOffset, 8);
+            setTtsButtonsState('playing');
         };
         utterance.onboundary = function(ev) {
             if (currentUtterance !== utterance) return;
@@ -2482,9 +2703,8 @@ var safeStorage = (function() {
             isReading = false; currentUtterance = null;
             ttsAbsCharEnd = text.length;
             if (continuous && hasNext) {
-                resetTtsBookmark(); speakLock = false; pageNum += 1;
-                currentPageNum = pageNum;
-                renderPage(pageNum, true).then(function() { speakCurrentPage(); });
+                setTtsButtonsState('idle');
+                ttsAfterPagePlaybackFinished(pageNum);
             } else {
                 resetTtsBookmark(); speakLock = false;
                 setTtsButtonsState('idle');
