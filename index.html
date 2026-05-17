@@ -983,6 +983,11 @@ var safeStorage = (function() {
     var ttsContinuousAdvanceLock = false;
     var ttsProxyEndHandled = false;
     var ttsProxyEndFallbackTimer = null;
+    var ttsProxyWatchInterval = null;
+    var ttsProxyWatchCapturedPage = null;
+    var ttsProxyRecoverAttempts = 0;
+    var TTS_PROXY_STALL_MS = 9000;
+    var TTS_PROXY_MAX_RECOVER = 5;
 
     var fileInput = document.getElementById('file-input');
     var loading = document.getElementById('loading');
@@ -1390,6 +1395,9 @@ var safeStorage = (function() {
         }
         return chain.then(done, function(err) {
             console.warn('[TTS] avanço contínuo:', err);
+            isReading = false;
+            speakLock = false;
+            setTtsButtonsState('idle');
             done();
             updateTtsButtonLabel();
         });
@@ -1404,15 +1412,159 @@ var safeStorage = (function() {
         renderPage(n, true).catch(function() {});
     }
 
+    function stopTtsProxyWatchdog() {
+        if (ttsProxyWatchInterval != null) {
+            clearInterval(ttsProxyWatchInterval);
+            ttsProxyWatchInterval = null;
+        }
+        ttsProxyWatchCapturedPage = null;
+    }
+
+    function isProxyAudioActivelyPlaying() {
+        return !!(ttsAudioEl && !ttsAudioEl.paused && !ttsAudioEl.ended);
+    }
+
+    function tryRecoverProxyPlayback(capturedPage) {
+        if (!ttsAudioEl || !ttsAudioEl.src) return false;
+        if (document.body.classList.contains('tts-paused') || ttsStopRequested) return false;
+        if (pageNum !== capturedPage || ttsProxyEndHandled) return false;
+        if (isProxyAudioActivelyPlaying()) {
+            ttsProxyRecoverAttempts = 0;
+            if (!isReading) isReading = true;
+            setTtsButtonsState('playing');
+            return true;
+        }
+        if (ttsAudioEl.ended) return false;
+
+        var pp;
+        try { pp = ttsAudioEl.play(); } catch (e) { return false; }
+        if (pp && typeof pp.then === 'function') {
+            pp.then(function() {
+                ttsProxyRecoverAttempts = 0;
+                isReading = true;
+                setTtsButtonsState('playing');
+                if ('mediaSession' in navigator) {
+                    try { navigator.mediaSession.playbackState = 'playing'; } catch (err) {}
+                }
+            }).catch(function() {});
+        } else {
+            isReading = true;
+            setTtsButtonsState('playing');
+        }
+        return true;
+    }
+
+    function syncTtsPlaybackUi(capturedPage) {
+        if (ttsEngine !== 'proxy' || !ttsAudioEl || !ttsAudioEl.src) return;
+        if (document.body.classList.contains('tts-paused')) return;
+        var pg = capturedPage != null ? capturedPage : pageNum;
+        if (isProxyAudioActivelyPlaying()) {
+            ttsProxyRecoverAttempts = 0;
+            if (!isReading) isReading = true;
+            setTtsButtonsState('playing');
+            return;
+        }
+        if (isReading && !ttsAudioEl.ended) {
+            tryRecoverProxyPlayback(pg);
+        }
+    }
+
+    function proxyAudioStalledAtEnd() {
+        if (!ttsAudioEl || !(ttsAudioEl.duration > 0)) return false;
+        return ttsAudioEl.currentTime >= ttsAudioEl.duration * 0.97;
+    }
+
+    function finalizeProxyPageEnd(capturedPage, capturedText) {
+        if (ttsProxyEndHandled || pageNum !== capturedPage) return;
+        ttsProxyEndHandled = true;
+        if (ttsProxyEndFallbackTimer != null) {
+            clearTimeout(ttsProxyEndFallbackTimer);
+            ttsProxyEndFallbackTimer = null;
+        }
+        stopTtsProxyWatchdog();
+        isReading = false;
+        currentUtterance = null;
+        ttsAbsCharEnd = capturedText.length;
+        if (!isAppInBackground()) updateHighlight(capturedText.length - 1, 8);
+        setTtsButtonsState('idle');
+        ttsAfterPagePlaybackFinished(capturedPage);
+    }
+
+    function startTtsProxyWatchdog(capturedPage, capturedText) {
+        stopTtsProxyWatchdog();
+        ttsProxyWatchCapturedPage = capturedPage;
+        ttsProxyRecoverAttempts = 0;
+        var lastTime = -1;
+        var lastProgressMs = Date.now();
+
+        ttsProxyWatchInterval = setInterval(function() {
+            if (pageNum !== capturedPage || ttsProxyWatchCapturedPage !== capturedPage) {
+                stopTtsProxyWatchdog();
+                return;
+            }
+            if (!ttsAudioEl || !ttsAudioEl.src) {
+                stopTtsProxyWatchdog();
+                return;
+            }
+            if (document.body.classList.contains('tts-paused')) return;
+
+            if (ttsAudioEl.ended && !ttsProxyEndHandled) {
+                finalizeProxyPageEnd(capturedPage, capturedText);
+                return;
+            }
+
+            var playing = isProxyAudioActivelyPlaying();
+            if (playing) {
+                var ct = ttsAudioEl.currentTime;
+                if (Math.abs(ct - lastTime) > 0.04) {
+                    lastTime = ct;
+                    lastProgressMs = Date.now();
+                } else if (Date.now() - lastProgressMs >= TTS_PROXY_STALL_MS) {
+                    if (ttsProxyRecoverAttempts < TTS_PROXY_MAX_RECOVER) {
+                        ttsProxyRecoverAttempts++;
+                        tryRecoverProxyPlayback(capturedPage);
+                        lastProgressMs = Date.now();
+                    } else {
+                        showTtsToast('Leitura travou. Toque em Ouvir para continuar.');
+                        pauseTTS();
+                    }
+                }
+            } else if (isReading && proxyAudioStalledAtEnd() && !ttsProxyEndHandled) {
+                finalizeProxyPageEnd(capturedPage, capturedText);
+                return;
+            } else if (isReading && !playing && !ttsAudioEl.ended) {
+                var len = capturedText.length;
+                if (len > 0 && ttsAudioEl.duration > 0) {
+                    var frac = ttsAudioEl.currentTime / ttsAudioEl.duration;
+                    var charP = Math.floor((ttsProxyResumeFrac + frac * (1 - ttsProxyResumeFrac)) * len);
+                    ttsAbsCharEnd = charP;
+                    ttsResumeCharOffset = charP;
+                    ttsResumePageNum = capturedPage;
+                    ttsLastFullTextLen = len;
+                }
+                if (ttsProxyRecoverAttempts < TTS_PROXY_MAX_RECOVER) {
+                    ttsProxyRecoverAttempts++;
+                    tryRecoverProxyPlayback(capturedPage);
+                }
+            }
+
+            syncTtsPlaybackUi(capturedPage);
+        }, 2000);
+    }
+
     function _bindProxyTtsPlayback(url, capturedText, capturedRanges, capturedPage, opts) {
         opts = opts || {};
         var skipSeek = !!opts.skipSeek;
         var autoPlay = opts.autoPlay !== false;
 
+        stopTtsProxyWatchdog();
         ttsAudioEl.ontimeupdate = null;
         ttsAudioEl.onended = null;
         ttsAudioEl.onerror = null;
         ttsAudioEl.onplay = null;
+        ttsAudioEl.onpause = null;
+        ttsAudioEl.onwaiting = null;
+        ttsAudioEl.onstalled = null;
 
         var resumeFrac = (ttsResumePageNum === capturedPage && ttsResumeCharOffset > 0 && capturedText.length > 0)
             ? ttsResumeCharOffset / capturedText.length : 0;
@@ -1427,6 +1579,7 @@ var safeStorage = (function() {
         ttsAbsCharEnd = Math.floor(resumeFrac * capturedText.length);
 
         ttsProxyEndHandled = false;
+        ttsProxyRecoverAttempts = 0;
         if (ttsProxyEndFallbackTimer != null) {
             clearTimeout(ttsProxyEndFallbackTimer);
             ttsProxyEndFallbackTimer = null;
@@ -1445,18 +1598,14 @@ var safeStorage = (function() {
                 if (ttsProxyEndFallbackTimer != null) clearTimeout(ttsProxyEndFallbackTimer);
                 ttsProxyEndFallbackTimer = setTimeout(function() {
                     ttsProxyEndFallbackTimer = null;
-                    if (ttsProxyEndHandled || pageNum !== capturedPage) return;
-                    if (!isReading && !ttsAudioEl) return;
-                    var ended = ttsAudioEl.ended;
-                    var atEnd = ttsAudioEl.duration > 0 && ttsAudioEl.currentTime >= ttsAudioEl.duration * 0.97;
-                    if (ended || atEnd) {
-                        ttsProxyEndHandled = true;
-                        isReading = false;
-                        ttsAbsCharEnd = capturedText.length;
-                        setTtsButtonsState('idle');
-                        ttsAfterPagePlaybackFinished(capturedPage);
+                    if (ttsProxyEndHandled || pageNum !== capturedPage || !ttsAudioEl) return;
+                    if (ttsAudioEl.ended) {
+                        finalizeProxyPageEnd(capturedPage, capturedText);
+                        return;
                     }
-                }, isAppInBackground() ? 80 : 350);
+                    if (isProxyAudioActivelyPlaying()) return;
+                    if (proxyAudioStalledAtEnd()) finalizeProxyPageEnd(capturedPage, capturedText);
+                }, isAppInBackground() ? 120 : 450);
             }
             var now = Date.now();
             if (now - hlLast < TTS_HIGHLIGHT_MS) return;
@@ -1487,6 +1636,7 @@ var safeStorage = (function() {
 
         ttsAudioEl.onplay = function() {
             document.body.classList.remove('tts-paused');
+            ttsProxyRecoverAttempts = 0;
             isReading = true;
             speakLock = false;
             updateTtsSeekButtonsVisible();
@@ -1496,19 +1646,26 @@ var safeStorage = (function() {
             }
         };
 
+        ttsAudioEl.onpause = function() {
+            if (ttsStopRequested || document.body.classList.contains('tts-paused')) return;
+            setTimeout(function() {
+                if (ttsStopRequested || document.body.classList.contains('tts-paused')) return;
+                if (!isProxyAudioActivelyPlaying() && !ttsAudioEl.ended) tryRecoverProxyPlayback(capturedPage);
+            }, 400);
+        };
+
+        ttsAudioEl.onwaiting = function() {
+            if (ttsStopRequested || document.body.classList.contains('tts-paused')) return;
+            tryRecoverProxyPlayback(capturedPage);
+        };
+
+        ttsAudioEl.onstalled = function() {
+            if (ttsStopRequested || document.body.classList.contains('tts-paused')) return;
+            tryRecoverProxyPlayback(capturedPage);
+        };
+
         ttsAudioEl.onended = function() {
-            if (pageNum !== capturedPage || ttsProxyEndHandled) return;
-            ttsProxyEndHandled = true;
-            if (ttsProxyEndFallbackTimer != null) {
-                clearTimeout(ttsProxyEndFallbackTimer);
-                ttsProxyEndFallbackTimer = null;
-            }
-            isReading = false;
-            currentUtterance = null;
-            ttsAbsCharEnd = capturedText.length;
-            if (!isAppInBackground()) updateHighlight(capturedText.length - 1, 8);
-            setTtsButtonsState('idle');
-            ttsAfterPagePlaybackFinished(capturedPage);
+            finalizeProxyPageEnd(capturedPage, capturedText);
         };
 
         ttsAudioEl.onerror = function() {
@@ -1522,11 +1679,14 @@ var safeStorage = (function() {
             }
         };
 
+        startTtsProxyWatchdog(capturedPage, capturedText);
+
         if (!autoPlay) return;
         var pp = ttsAudioEl.play();
         updateMediaSession(currentBookTitle, currentPageNum);
         if (pp && typeof pp.then === 'function') {
             pp.then(function() {
+                syncTtsPlaybackUi(capturedPage);
                 updateMediaSession(currentBookTitle, currentPageNum);
                 if ('mediaSession' in navigator) {
                     try { navigator.mediaSession.playbackState = 'playing'; } catch (e) {}
@@ -1549,7 +1709,6 @@ var safeStorage = (function() {
         if (ttsAudioEl.duration > 0 && ttsAudioEl.currentTime >= ttsAudioEl.duration - 0.2) return false;
 
         document.body.classList.remove('tts-paused');
-        isReading = true;
         _bindProxyTtsPlayback(ttsAudioEl.src, text, ranges, pageNum, { skipSeek: true });
         return true;
     }
@@ -1782,10 +1941,12 @@ var safeStorage = (function() {
         ttsAbsCharEnd = 0;
         ttsProxyResumeFrac = 0;
         ttsProxyEndHandled = false;
+        ttsProxyRecoverAttempts = 0;
         if (ttsProxyEndFallbackTimer != null) {
             clearTimeout(ttsProxyEndFallbackTimer);
             ttsProxyEndFallbackTimer = null;
         }
+        stopTtsProxyWatchdog();
         document.body.classList.remove('tts-paused');
         updateTtsSeekButtonsVisible();
     }
@@ -2460,6 +2621,7 @@ var safeStorage = (function() {
         }
 
         speakLock = false;
+        stopTtsProxyWatchdog();
         document.body.classList.add('tts-paused');
         if (ttsResumeCharOffset > 0) updateHighlight(ttsResumeCharOffset, 8);
         setTtsButtonsState('continue');
@@ -2473,10 +2635,12 @@ var safeStorage = (function() {
         isReading = false;
         currentUtterance = null;
         /* Proxy */
+        stopTtsProxyWatchdog();
         if (ttsAudioEl) {
             ttsAudioEl.pause();
             ttsAudioEl.ontimeupdate = null; ttsAudioEl.onended = null;
             ttsAudioEl.onerror = null; ttsAudioEl.onplay = null;
+            ttsAudioEl.onpause = null; ttsAudioEl.onwaiting = null; ttsAudioEl.onstalled = null;
             ttsAudioEl.src = '';
         }
         _revokeTtsBlobUrl();
@@ -2541,6 +2705,10 @@ var safeStorage = (function() {
                 _playTtsUrl(url, text, ranges, pageNum);
             }, function(err) {
                 console.error('[TTS proxy]', err);
+                isReading = false;
+                speakLock = false;
+                setTtsButtonsState('idle');
+                updateTtsButtonLabel();
                 showTtsToast('Erro no servidor TTS. Verifique o proxy Supabase.');
             });
             return Promise.resolve();
@@ -2566,7 +2734,16 @@ var safeStorage = (function() {
     function toggleTTS() {
         /* Desbloquear áudio a cada clique (garante unlock mesmo se primeiro clique foi noutro elemento) */
         _unlockAudio();
-        if (isReading) { pauseTTS(); return; }
+        if (isReading) {
+            if (ttsEngine === 'proxy' && !isProxyAudioActivelyPlaying() && !document.body.classList.contains('tts-paused')) {
+                if (tryRecoverProxyPlayback(pageNum)) return;
+                if (tryResumePausedProxyTts()) return;
+                speakCurrentPage();
+                return;
+            }
+            pauseTTS();
+            return;
+        }
         if (speakLock) {
             _clearTtsWatchdog();
             ttsStopRequested = true; speakLock = false;
