@@ -950,7 +950,10 @@ var safeStorage = (function() {
     var ttsProxyUrl = null;    /* URL do Edge Function */
     var ttsAudioEl  = null;    /* <audio> reutilizável (engine proxy) */
     /* ttsAudioCache: guarda a URL de streaming já configurada no elemento */
-    var ttsAudioCache = { pageNum: null, url: null, ready: false, error: false };
+    var ttsAudioCache = { pageNum: null, url: null, ready: false, error: false, key: null };
+    var ttsPrefetchAudioEl = null;
+    var ttsFetchInflight = null;
+    var TTS_PREFETCH_PROGRESS = 0.45;
     var _audioUnlocked  = false; /* true após unlock por gesto do utilizador */
     var _wsSynth = typeof window.speechSynthesis !== 'undefined' ? window.speechSynthesis : null;
     var readeraSb = null;
@@ -1179,12 +1182,16 @@ var safeStorage = (function() {
     document.getElementById('continuous-read').addEventListener('change', schedulePushUserPreferences);
     voiceSelect.addEventListener('change', function() {
         safeStorage.setItem('readera-voice-key', voiceSelect.value);
+        invalidateTtsAudioCache();
         schedulePushUserPreferences();
     });
 
     rateRange.addEventListener('input', function() {
         rateLabel.textContent = Number(rateRange.value).toFixed(2).replace(/\.?0+$/, '') + '×';
         schedulePushUserPreferences();
+    });
+    rateRange.addEventListener('change', function() {
+        invalidateTtsAudioCache();
     });
     rateLabel.textContent = rateRange.value + '×';
 
@@ -1221,18 +1228,94 @@ var safeStorage = (function() {
         }
     }
 
-    function _fetchTtsAudioUrl(text, voice, rate, onOk, onErr) {
-        var cfg = window.READERA_SUPABASE;
-        if (!_ttsUrlTooLongForGet(text, voice, rate)) {
-            onOk(_getTtsStreamUrl(text, voice, rate));
+    function _ttsSendText(text) {
+        var MAX = 4000;
+        return text.length > MAX ? text.slice(0, MAX) : text;
+    }
+
+    function _ttsCacheKey(pageNum, text, voice, rate) {
+        var sendText = _ttsSendText(text);
+        return String(pageNum) + '|' + (voice || 'pt-BR-FranciscaNeural') + '|' + String(rate || 1)
+            + '|' + sendText.length + '|' + sendText.slice(0, 80);
+    }
+
+    function invalidateTtsAudioCache() {
+        ttsAudioCache = { pageNum: null, url: null, ready: false, error: false, key: null };
+        ttsFetchInflight = null;
+    }
+
+    function _ensureMainTtsAudioEl() {
+        if (!ttsAudioEl) {
+            ttsAudioEl = document.createElement('audio');
+            ttsAudioEl.preload = 'auto';
+            ttsAudioEl.setAttribute('playsinline', '');
+            ttsAudioEl.setAttribute('webkit-playsinline', '');
+            document.body.appendChild(ttsAudioEl);
+        }
+        return ttsAudioEl;
+    }
+
+    function _warmTtsUrlInBackground(url) {
+        if (!url) return;
+        if (!ttsPrefetchAudioEl) {
+            ttsPrefetchAudioEl = document.createElement('audio');
+            ttsPrefetchAudioEl.preload = 'auto';
+            ttsPrefetchAudioEl.setAttribute('playsinline', '');
+            ttsPrefetchAudioEl.setAttribute('webkit-playsinline', '');
+            ttsPrefetchAudioEl.style.position = 'absolute';
+            ttsPrefetchAudioEl.style.width = '0';
+            ttsPrefetchAudioEl.style.height = '0';
+            ttsPrefetchAudioEl.style.opacity = '0';
+            ttsPrefetchAudioEl.style.pointerEvents = 'none';
+            document.body.appendChild(ttsPrefetchAudioEl);
+        }
+        if (ttsPrefetchAudioEl.src !== url) {
+            ttsPrefetchAudioEl.src = url;
+            try { ttsPrefetchAudioEl.load(); } catch (e) {}
+        }
+    }
+
+    function _flushTtsFetchInflight(err, url, pageNum, key) {
+        var batch = ttsFetchInflight;
+        ttsFetchInflight = null;
+        if (!batch) return;
+        if (err) {
+            batch.callbacks.forEach(function(cb) { if (cb.onErr) cb.onErr(err); });
             return;
         }
+        ttsAudioCache = { pageNum: pageNum, url: url, ready: true, error: false, key: key };
+        batch.callbacks.forEach(function(cb) { if (cb.onOk) cb.onOk(url); });
+    }
+
+    function _fetchTtsAudioUrl(text, voice, rate, onOk, onErr, targetPage) {
+        var num = (targetPage != null && targetPage > 0) ? (targetPage | 0) : pageNum;
+        var key = _ttsCacheKey(num, text, voice, rate);
+
+        if (ttsAudioCache.pageNum === num && ttsAudioCache.ready && ttsAudioCache.url && ttsAudioCache.key === key) {
+            onOk(ttsAudioCache.url);
+            return;
+        }
+
+        if (ttsFetchInflight && ttsFetchInflight.key === key) {
+            ttsFetchInflight.callbacks.push({ onOk: onOk, onErr: onErr });
+            return;
+        }
+
+        if (!_ttsUrlTooLongForGet(text, voice, rate)) {
+            var streamUrl = _getTtsStreamUrl(text, voice, rate);
+            ttsAudioCache = { pageNum: num, url: streamUrl, ready: true, error: false, key: key };
+            onOk(streamUrl);
+            return;
+        }
+
+        var cfg = window.READERA_SUPABASE;
         if (!ttsProxyUrl || !cfg || !cfg.anonKey) {
             onErr('Proxy TTS não configurado.');
             return;
         }
-        var MAX = 4000;
-        var sendText = text.length > MAX ? text.slice(0, MAX) : text;
+
+        ttsFetchInflight = { key: key, pageNum: num, callbacks: [{ onOk: onOk, onErr: onErr }] };
+        var sendText = _ttsSendText(text);
         fetch(ttsProxyUrl, {
             method: 'POST',
             headers: {
@@ -1256,30 +1339,47 @@ var safeStorage = (function() {
             if (!blob || blob.size < 80) throw new Error('TTS: áudio vazio');
             _revokeTtsBlobUrl();
             _ttsBlobUrlCache = URL.createObjectURL(blob);
-            onOk(_ttsBlobUrlCache);
+            _flushTtsFetchInflight(null, _ttsBlobUrlCache, num, key);
         }).catch(function(e) {
-            onErr(e && e.message ? e.message : String(e));
+            var msg = e && e.message ? e.message : String(e);
+            _flushTtsFetchInflight(msg, null, num, key);
         });
     }
 
-    /* Pre-fetch: define src + load() para o browser começar a bufferizar.
-       Não requer gesto do utilizador. play() é feito depois, no gesto. */
+    /* Pré-busca: grava URL em cache; não interrompe áudio da página em reprodução. */
     function preFetchTtsAudio(num, text) {
         if (ttsEngine !== 'proxy' || !ttsProxyUrl || !text || !text.trim()) return;
-        if (ttsAudioCache.pageNum === num && ttsAudioCache.ready) return;
         var voice = voiceSelect ? voiceSelect.value : 'pt-BR-FranciscaNeural';
         var rate  = Number(rateRange.value);
-        var url   = _getTtsStreamUrl(text, voice, rate);
-        if (!ttsAudioEl) {
-            ttsAudioEl = document.createElement('audio');
-            ttsAudioEl.preload = 'auto';
-            ttsAudioEl.setAttribute('playsinline', '');
-            ttsAudioEl.setAttribute('webkit-playsinline', '');
-            document.body.appendChild(ttsAudioEl);
+        var key = _ttsCacheKey(num, text, voice, rate);
+
+        if (ttsAudioCache.pageNum === num && ttsAudioCache.ready && ttsAudioCache.key === key && ttsAudioCache.url) {
+            return;
         }
-        ttsAudioEl.src = url;
-        try { ttsAudioEl.load(); } catch(e) {}
-        ttsAudioCache = { pageNum: num, url: url, ready: true, error: false };
+
+        if (_ttsUrlTooLongForGet(text, voice, rate)) {
+            _fetchTtsAudioUrl(text, voice, rate, function() {}, function() {}, num);
+            return;
+        }
+
+        var url = _getTtsStreamUrl(text, voice, rate);
+        ttsAudioCache = { pageNum: num, url: url, ready: true, error: false, key: key };
+
+        var playbackOnThisPage = isReading && ttsAudioEl && !ttsAudioEl.paused && pageNum === num;
+        if (playbackOnThisPage) {
+            return;
+        }
+
+        if (isReading && pageNum !== num) {
+            _warmTtsUrlInBackground(url);
+            return;
+        }
+
+        var el = _ensureMainTtsAudioEl();
+        if (el.src !== url) {
+            el.src = url;
+            try { el.load(); } catch (e) {}
+        }
     }
 
     function updateMediaSession(tituloLivro, paginaAtual) {
@@ -1590,7 +1690,7 @@ var safeStorage = (function() {
         ttsAudioEl.ontimeupdate = function() {
             if (!isReading || ttsAudioEl.duration <= 0) return;
             var progress = ttsAudioEl.currentTime / ttsAudioEl.duration;
-            if (!prefetchNextDone && progress >= 0.72) {
+            if (!prefetchNextDone && progress >= TTS_PREFETCH_PROGRESS) {
                 prefetchNextDone = true;
                 prefetchNextPageForContinuous(capturedPage);
             }
@@ -2445,7 +2545,7 @@ var safeStorage = (function() {
         isRendering = true;
         ttsPageCache = { pageNum: null, text: '', ranges: [] };
         if (ttsAudioCache.pageNum !== num) {
-            ttsAudioCache = { pageNum: null, url: null, ready: false, error: false };
+            ttsAudioCache = { pageNum: null, url: null, ready: false, error: false, key: null };
         }
         ['btn-tts', 'btn-tts-float'].forEach(function(id) {
             var b = document.getElementById(id);
@@ -2518,6 +2618,10 @@ var safeStorage = (function() {
 
                 if (ttsBuilt.text && ttsBuilt.text.trim()) {
                     preFetchTtsAudio(num, ttsBuilt.text);
+                }
+                var contPrefetch = document.getElementById('continuous-read');
+                if (contPrefetch && contPrefetch.checked && num < pdfDoc.numPages) {
+                    prefetchNextPageForContinuous(num);
                 }
             });
         }).catch(function(err) {
@@ -2694,14 +2798,9 @@ var safeStorage = (function() {
             var text = ttsPageCache.pageNum === pageNum ? (ttsPageCache.text || '') : '';
             if (!text.trim()) { showTtsToast('Esta página não tem texto legível.'); return Promise.resolve(); }
             var ranges = ttsPageCache.ranges || [];
-            if (ttsAudioCache.pageNum === pageNum && ttsAudioCache.url && ttsAudioCache.ready) {
-                _playTtsUrl(ttsAudioCache.url, text, ranges, pageNum);
-                return Promise.resolve();
-            }
             var voice = voiceSelect ? voiceSelect.value : 'pt-BR-FranciscaNeural';
             var rate  = Number(rateRange.value);
             _fetchTtsAudioUrl(text, voice, rate, function(url) {
-                ttsAudioCache = { pageNum: pageNum, url: url, ready: true, error: false };
                 _playTtsUrl(url, text, ranges, pageNum);
             }, function(err) {
                 console.error('[TTS proxy]', err);
@@ -2710,7 +2809,7 @@ var safeStorage = (function() {
                 setTtsButtonsState('idle');
                 updateTtsButtonLabel();
                 showTtsToast('Erro no servidor TTS. Verifique o proxy Supabase.');
-            });
+            }, pageNum);
             return Promise.resolve();
         }
 
@@ -2765,7 +2864,7 @@ var safeStorage = (function() {
             }, function(err) {
                 console.error('[TTS proxy]', err);
                 showTtsToast('Erro no servidor TTS (500). Tente de novo.');
-            });
+            }, pageNum);
             return;
         }
 
