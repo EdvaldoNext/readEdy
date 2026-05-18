@@ -69,6 +69,11 @@
             min-height: 0;
             min-width: 0;
         }
+        body.dark #main-container,
+        body.dark .pdf-viewer-area,
+        body.dark #viewer-container {
+            background-color: #141414 !important;
+        }
         body.reading-mode { background: var(--read-surface); }
         body.reading-mode #viewer-container { padding-top: 22px; }
         body.reading-mode #pdf-render-area .pdf-page-wrap { box-shadow: 0 10px 44px rgba(0,0,0,0.2); border-radius: 6px; overflow: hidden; }
@@ -84,6 +89,19 @@
         #pdf-render-area .pdf-page-inner { position: relative; transform-origin: 0 0; }
         #pdf-render-area canvas { display: block; box-shadow: 0 4px 15px rgba(0,0,0,0.2); background: white; border-radius: 4px; }
         body.reading-mode #pdf-render-area canvas { box-shadow: none; border-radius: 0; }
+        /* Tema escuro: inverte o PDF (texto claro em fundo escuro); hue-rotate preserva cores em páginas ilustradas */
+        body.dark #pdf-render-area canvas {
+            -webkit-filter: invert(1) hue-rotate(180deg);
+            filter: invert(1) hue-rotate(180deg);
+            background: #1a1a1a;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.45);
+        }
+        body.dark.reading-mode #pdf-render-area canvas {
+            box-shadow: none;
+        }
+        body.dark.reading-mode #pdf-render-area .pdf-page-inner {
+            background: #0d0d0d;
+        }
         .text-layer { position: absolute; left: 0; top: 0; overflow: hidden; line-height: 1; pointer-events: none; }
         .text-layer span { position: absolute; color: transparent; white-space: pre; transform-origin: 0 0; box-sizing: content-box; }
         .text-layer span.tts-active { background: rgba(255, 214, 74, 0.68); border-radius: 2px; box-shadow: 0 0 0 1px rgba(255, 180, 0, 0.35); }
@@ -184,9 +202,86 @@
         #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.75); color: white; padding: 20px; border-radius: 10px; z-index: 2000; }
         .sr-hint { font-size: 0.7rem; opacity: 0.75; width: 100%; text-align: center; }
         .nowrap { white-space: nowrap; }
-        #cloud-library { display: inline-block; max-width: 160px; border-radius: 8px; padding: 6px 8px; border: 1px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.18); color: #fff; font-size: 0.8rem; vertical-align: middle; }
-        #cloud-library.hidden { display: none !important; }
-        #cloud-library option { color: #111; }
+        .cloud-library-wrap { position: relative; flex-shrink: 0; max-width: 160px; vertical-align: middle; }
+        .cloud-library-wrap.hidden { display: none !important; }
+        .cloud-library-trigger {
+            display: block;
+            width: 100%;
+            max-width: 160px;
+            border-radius: 8px;
+            padding: 6px 8px;
+            border: 1px solid rgba(255,255,255,0.35);
+            background: rgba(255,255,255,0.18);
+            color: #fff;
+            font-size: 0.8rem;
+            text-align: left;
+            cursor: pointer;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .cloud-library-panel {
+            position: fixed;
+            z-index: 4500;
+            min-width: min(92vw, 280px);
+            max-width: min(92vw, 380px);
+            max-height: min(50vh, 360px);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            background: #252525;
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 12px;
+            box-shadow: 0 10px 28px rgba(0,0,0,0.45);
+        }
+        .cloud-library-panel.hidden { display: none !important; }
+        .cloud-library-item {
+            display: -webkit-box;
+            display: -webkit-flex;
+            display: -ms-flexbox;
+            display: flex;
+            -webkit-box-align: center;
+            -webkit-align-items: center;
+            -ms-flex-align: center;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 8px 8px 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .cloud-library-item:last-child { border-bottom: none; }
+        .cloud-library-item-name {
+            -webkit-box-flex: 1;
+            -webkit-flex: 1;
+            -ms-flex: 1;
+            flex: 1;
+            min-width: 0;
+            border: none;
+            background: transparent;
+            color: inherit;
+            font-size: 0.8rem;
+            text-align: left;
+            cursor: pointer;
+            padding: 6px 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .cloud-library-item-name:active { opacity: 0.85; }
+        .cloud-library-item-del {
+            width: 36px;
+            height: 36px;
+            min-width: 36px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(192, 57, 43, 0.45);
+            color: #fff;
+            font-size: 1rem;
+            line-height: 1;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .cloud-library-item-del:active { -webkit-transform: scale(0.95); transform: scale(0.95); }
+        .cloud-library-empty { padding: 12px 14px; font-size: 0.8rem; opacity: 0.75; }
         #btn-cloud-save:disabled,
         #btn-cloud-delete:disabled { opacity: 0.45; cursor: not-allowed; }
         #tts-toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(10px); background: rgba(30,30,30,0.92); color: #fff; padding: 9px 20px; border-radius: 20px; font-size: 0.82rem; pointer-events: none; opacity: 0; transition: opacity 0.25s, transform 0.25s; z-index: 3000; white-space: nowrap; }
@@ -235,16 +330,15 @@
         #cloud-badge.cloud-status-error { background: rgba(192, 57, 43, 0.55); box-shadow: 0 0 0 2px #e74c3c; }
         #cloud-badge.cloud-status-wait,
         #cloud-badge.cloud-status-pending { background: rgba(255,255,255,0.1); opacity: 0.85; }
-        #cloud-library.hdr-library-select {
+        .cloud-library-wrap.hdr-library-select { max-width: 148px; min-width: 108px; }
+        .cloud-library-wrap.hdr-library-select .cloud-library-trigger {
             max-width: 148px;
             min-width: 108px;
             border-radius: 999px;
             padding: 8px 10px;
             border: 1px solid rgba(255,255,255,0.35);
             background: rgba(255,255,255,0.16);
-            color: #fff;
             font-size: 0.78rem;
-            flex-shrink: 0;
         }
         #settings-screen {
             display: none;
@@ -264,6 +358,30 @@
             overflow: hidden;
         }
         #settings-screen.open { display: -webkit-box; display: -webkit-flex; display: -ms-flexbox; display: flex; }
+        #settings-screen.open .settings-screen-card {
+            -webkit-box-flex: 1;
+            -webkit-flex: 1;
+            -ms-flex: 1;
+            flex: 1;
+            min-height: 0;
+            display: -webkit-box;
+            display: -webkit-flex;
+            display: -ms-flexbox;
+            display: flex;
+            -webkit-box-orient: vertical;
+            -webkit-box-direction: normal;
+            -webkit-flex-direction: column;
+            -ms-flex-direction: column;
+            flex-direction: column;
+        }
+        .settings-scroll-wrap {
+            -webkit-box-flex: 1;
+            -webkit-flex: 1;
+            -ms-flex: 1;
+            flex: 1;
+            min-height: 0;
+            position: relative;
+        }
         .settings-screen-header {
             display: -webkit-box;
             display: -webkit-flex;
@@ -374,7 +492,8 @@
             -ms-flex-align: center;
             align-items: center;
         }
-        #settings-panel #voice-select {
+        #settings-panel #voice-select,
+        #settings-panel #tts-engine-select {
             width: 100%;
             max-width: 100%;
             border-radius: 8px;
@@ -384,6 +503,12 @@
             color: var(--text);
             font-size: 0.88rem;
             box-sizing: border-box;
+        }
+        #settings-panel #tts-engine-select option:disabled {
+            color: rgba(128,128,128,0.65);
+        }
+        #tts-engine-hint {
+            margin-top: -6px;
         }
         #settings-panel #rate-range {
             -webkit-box-flex: 1;
@@ -468,6 +593,94 @@
                 -ms-flex-direction: column;
                 flex-direction: column;
                 box-shadow: 0 16px 48px rgba(0,0,0,0.28);
+            }
+            .settings-scroll-wrap {
+                position: relative;
+                -webkit-box-flex: 1;
+                -webkit-flex: 1;
+                -ms-flex: 1;
+                flex: 1;
+                min-height: 0;
+                display: -webkit-box;
+                display: -webkit-flex;
+                display: -ms-flexbox;
+                display: flex;
+                -webkit-box-orient: vertical;
+                -webkit-box-direction: normal;
+                -webkit-flex-direction: column;
+                -ms-flex-direction: column;
+                flex-direction: column;
+            }
+            .settings-scroll-wrap .settings-screen-scroll {
+                padding-right: 52px;
+            }
+        }
+        .scroll-nav-stack {
+            display: none;
+            -webkit-box-orient: vertical;
+            -webkit-box-direction: normal;
+            -webkit-flex-direction: column;
+            -ms-flex-direction: column;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 6;
+            pointer-events: none;
+        }
+        .scroll-nav-stack .scroll-nav-btn { pointer-events: auto; }
+        .scroll-nav-btn {
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            min-height: 40px;
+            border: 1px solid rgba(128,128,128,0.28);
+            border-radius: 999px;
+            background: var(--panel);
+            color: var(--text);
+            font-size: 1rem;
+            line-height: 1;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+            padding: 0;
+        }
+        .scroll-nav-btn:active:not(:disabled) {
+            -webkit-transform: scale(0.96);
+            transform: scale(0.96);
+        }
+        .scroll-nav-btn:disabled {
+            opacity: 0.32;
+            cursor: default;
+            box-shadow: none;
+        }
+        .scroll-nav-stack.is-dimmed { opacity: 0.35; }
+        @media (min-width: 641px) {
+            .scroll-nav-stack--settings {
+                display: -webkit-box;
+                display: -webkit-flex;
+                display: -ms-flexbox;
+                display: flex;
+                position: absolute;
+                right: 10px;
+                top: 50%;
+                -webkit-transform: translateY(-50%);
+                transform: translateY(-50%);
+            }
+            body.pdf-is-open .scroll-nav-stack--reader {
+                display: -webkit-box;
+                display: -webkit-flex;
+                display: -ms-flexbox;
+                display: flex;
+                position: fixed;
+                right: 14px;
+                top: 50%;
+                -webkit-transform: translateY(-50%);
+                transform: translateY(-50%);
+                z-index: 3650;
+            }
+            .scroll-nav-stack--reader .scroll-nav-btn {
+                background: var(--accent);
+                color: #fff;
+                border-color: transparent;
+                box-shadow: 0 4px 16px rgba(0,0,0,0.28);
             }
         }
         /* ☰ + 🔊 na tela de leitura (canto inferior esquerdo) */
@@ -572,7 +785,8 @@
             .controls-row.tts-options label { justify-content: space-between; width: 100%; }
             .controls-row.tts-options select { max-width: none; width: 100%; }
             .controls-row.tts-options input[type="range"] { width: 100%; max-width: none; flex: 1; }
-            #cloud-library { max-width: 100%; }
+            .cloud-library-wrap { max-width: 100%; }
+            .cloud-library-wrap .cloud-library-trigger { max-width: 100%; }
             .controls-row.page-jump .nowrap { white-space: normal; }
         }
         @media (min-width: 1400px) {
@@ -654,9 +868,12 @@
     <span class="header-brand"><b>ReadEra</b> Web Pro</span>
     <div class="header-actions">
         <button type="button" id="cloud-badge" class="hdr-icon-btn cloud-status-wait" title="Estado da nuvem" aria-label="Estado da nuvem" disabled>☁️</button>
-        <select id="cloud-library" class="hdr-library-select hidden" title="Abrir PDF salvo na nuvem" aria-label="Meus PDFs na nuvem"></select>
+        <div class="cloud-library-wrap hdr-library-select hidden" id="cloud-library-wrap" title="Abrir PDF salvo na nuvem">
+            <button type="button" id="cloud-library-trigger" class="cloud-library-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="cloud-library-panel">☁️ Meus PDFs…</button>
+            <div id="cloud-library-panel" class="cloud-library-panel hidden" role="listbox" aria-label="Meus PDFs na nuvem"></div>
+        </div>
         <button type="button" class="hdr-icon-btn hidden" id="btn-cloud-save" title="Guardar PDF na nuvem" aria-label="Guardar na nuvem">☁️⬆</button>
-        <button type="button" class="hdr-icon-btn hdr-icon-danger hdr-icon-pill hidden" id="btn-cloud-delete" title="Excluir PDF da nuvem" aria-label="Excluir PDF da nuvem">🗑<span class="hdr-micro">PDF</span></button>
+        <button type="button" class="hdr-icon-btn hdr-icon-danger hdr-icon-pill hidden" id="btn-cloud-delete" title="Apagar todos os PDFs da nuvem" aria-label="Apagar todos os PDFs da nuvem">🗑<span class="hdr-micro">PDF</span></button>
         <button type="button" class="hdr-icon-btn" id="btn-theme" title="Tema claro/escuro" aria-label="Alternar tema">🌙</button>
         <button type="button" class="hdr-icon-btn hdr-icon-primary hdr-icon-pill" id="btn-open-pdf" title="Abrir PDF" aria-label="Abrir PDF" onclick="document.getElementById('file-input').click()">📂<span class="hdr-micro">PDF</span></button>
     </div>
@@ -669,7 +886,8 @@
             <button type="button" class="settings-back-btn" id="btn-settings-back" title="Voltar" aria-label="Voltar">←</button>
             <h1 id="settings-screen-title">Configurações</h1>
         </div>
-        <div class="settings-screen-scroll">
+        <div class="settings-scroll-wrap">
+        <div class="settings-screen-scroll" id="settings-screen-scroll">
             <div class="settings-screen-inner" id="settings-panel" role="region" aria-label="Opções de leitura">
                 <section class="settings-group">
                     <h2 class="settings-group-title">Leitura</h2>
@@ -678,6 +896,7 @@
                     <label class="settings-row"><input type="checkbox" id="opt-reading-mode"><span class="settings-row-text">Modo leitura</span></label>
                     <p class="panel-hint">Fundo calmo e página com aparência de leitor focado no texto.</p>
                     <p class="panel-hint">Durante a voz alta, o trecho atual fica destacado no próprio PDF (sem caixa de texto extra).</p>
+                    <p class="panel-hint">Com o tema escuro (🌙 no topo), o PDF também fica escurecido para leitura noturna.</p>
                 </section>
                 <section class="settings-group">
                     <h2 class="settings-group-title">Navegação</h2>
@@ -692,6 +911,15 @@
                 </section>
                 <section class="settings-group">
                     <h2 class="settings-group-title">Voz alta</h2>
+                    <div class="settings-field">
+                        <span class="settings-field-label">Motor de voz</span>
+                        <select id="tts-engine-select" title="Como gerar o áudio da leitura" aria-describedby="tts-engine-hint">
+                            <option value="auto">Auto (recomendado)</option>
+                            <option value="proxy">Backend (nuvem)</option>
+                            <option value="webspeech">Navegador (dispositivo)</option>
+                        </select>
+                    </div>
+                    <p class="panel-hint" id="tts-engine-hint">Automático: nuvem quando disponível; senão voz do navegador.</p>
                     <div class="settings-field">
                         <span class="settings-field-label">Voz</span>
                         <select id="voice-select" title="Voz da leitura"></select>
@@ -721,6 +949,11 @@
                 </section>
             </div>
         </div>
+        <div class="scroll-nav-stack scroll-nav-stack--settings" id="settings-scroll-nav" aria-label="Rolar configurações">
+            <button type="button" class="scroll-nav-btn" id="btn-settings-scroll-up" title="Rolar para cima" aria-label="Rolar configurações para cima">▲</button>
+            <button type="button" class="scroll-nav-btn" id="btn-settings-scroll-down" title="Rolar para baixo" aria-label="Rolar configurações para baixo">▼</button>
+        </div>
+        </div>
     </div>
 </div>
 
@@ -738,6 +971,10 @@
 <div class="reader-float-left" aria-label="Controles rápidos de leitura">
     <button type="button" id="btn-show-chrome" class="reader-chrome-fab" title="Mostrar barras de ferramentas" aria-label="Mostrar controles">☰</button>
     <button type="button" id="btn-tts-float" class="btn-tts-ui tts-state-idle" onclick="toggleTTS()" title="Ouvir em voz alta" aria-label="Ouvir em voz alta"><span class="tts-speaker" aria-hidden="true">🔊</span><span class="tts-badge-x" aria-hidden="true">✕</span></button>
+</div>
+<div id="reader-scroll-nav" class="scroll-nav-stack scroll-nav-stack--reader" aria-label="Rolar página do PDF">
+    <button type="button" class="scroll-nav-btn" id="btn-reader-scroll-up" title="Rolar página para cima" aria-label="Rolar página para cima">▲</button>
+    <button type="button" class="scroll-nav-btn" id="btn-reader-scroll-down" title="Rolar página para baixo" aria-label="Rolar página para baixo">▼</button>
 </div>
 <div id="reader-float-bar" aria-label="Controles de leitura sobre o PDF">
     <div class="reader-float-bar-track">
@@ -835,7 +1072,7 @@ if (typeof window.fetch === 'undefined') {
    XHR HELPERS — usados para download de PDFs da nuvem.
    Mais compatível com TVs que têm restrições CORS no fetch nativo.
    ══════════════════════════════════════════════════════════════ */
-function _xhrRequest(method, url, headers, body, responseType) {
+function _xhrRequest(method, url, headers, body, responseType, timeoutMs) {
     return new Promise(function(resolve, reject) {
         var xhr = new XMLHttpRequest();
         xhr.open(method, url, true);
@@ -843,7 +1080,7 @@ function _xhrRequest(method, url, headers, body, responseType) {
         if (headers) {
             Object.keys(headers).forEach(function(k) { try { xhr.setRequestHeader(k, headers[k]); } catch(e) {} });
         }
-        xhr.timeout = 30000;
+        xhr.timeout = timeoutMs || 30000;
         xhr.onload = function() {
             if (xhr.status >= 200 && xhr.status < 300) { resolve(xhr.response); }
             else { reject(new Error('HTTP ' + xhr.status)); }
@@ -868,8 +1105,8 @@ function _createSignedUrlXhr(bucket, storagePath, expiresIn) {
         return signed.startsWith('/') ? baseUrl + signed : signed;
     });
 }
-function _downloadArrayBufferXhr(url) {
-    return _xhrRequest('GET', url, {}, null, 'arraybuffer');
+function _downloadArrayBufferXhr(url, timeoutMs) {
+    return _xhrRequest('GET', url, {}, null, 'arraybuffer', timeoutMs || 120000);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -965,7 +1202,11 @@ var safeStorage = (function() {
     var progressSaveTimer = null;
     var cloudUiBound = false;
     var cloudSyncInFlight = false;
+    var cloudLibraryCount = 0;
+    var cloudLibraryPanelOpen = false;
+    var cloudLibrarySuppressClose = false;
     var LS_AUTO_CLOUD = 'readera-auto-cloud';
+    var LS_TTS_ENGINE = 'readera-tts-engine';
     var LS_RESUME_CLOUD = 'readera-resume-cloud';
     var LS_LAST_CLOUD_DOC = 'readera_last_cloud_doc_id';
     var ttsCharRanges = [];
@@ -991,9 +1232,42 @@ var safeStorage = (function() {
     var ttsProxyRecoverAttempts = 0;
     var TTS_PROXY_STALL_MS = 9000;
     var TTS_PROXY_MAX_RECOVER = 5;
+    var cloudLoadGen = 0;
+    var renderGen = 0;
+    var pdfLoadingTask = null;
 
     var fileInput = document.getElementById('file-input');
     var loading = document.getElementById('loading');
+
+    function setAppLoading(show, message) {
+        if (!loading) return;
+        if (message) loading.textContent = message;
+        else if (!show) loading.textContent = 'Carregando PDF...';
+        if (show) loading.classList.remove('hidden');
+        else loading.classList.add('hidden');
+    }
+
+    function abortPdfLoadingTask() {
+        if (pdfLoadingTask && pdfLoadingTask.destroy) {
+            try { pdfLoadingTask.destroy(); } catch (e) {}
+        }
+        pdfLoadingTask = null;
+    }
+
+    function teardownCurrentPdf() {
+        renderGen++;
+        isRendering = false;
+        abortPdfLoadingTask();
+        stopTTS({ resetBookmark: true });
+        invalidateTtsAudioCache();
+        ttsNextPageCache = { pageNum: null, text: '', ranges: [] };
+        if (pdfDoc && pdfDoc.destroy) {
+            try { pdfDoc.destroy(); } catch (e) {}
+        }
+        pdfDoc = null;
+        pdfTextLayerSpans = null;
+        ttsPageCache = { pageNum: null, text: '', ranges: [] };
+    }
     var voiceSelect = document.getElementById('voice-select');
     var rateRange = document.getElementById('rate-range');
     var rateLabel = document.getElementById('rate-label');
@@ -1107,23 +1381,110 @@ var safeStorage = (function() {
         document.removeEventListener('click', _firstClick);
     });
 
-    /* Chamada após initSupabaseClient() determinar a config disponível */
-    function initTtsEngine() {
-        const cfg = window.READERA_SUPABASE;
-        ttsProxyUrl = (cfg && cfg.url) ? (cfg.url + '/functions/v1/tts-proxy') : null;
-        if (ttsProxyUrl) {
-            ttsEngine = 'proxy';
+    function getTtsEnginePreference() {
+        var p = safeStorage.getItem(LS_TTS_ENGINE);
+        if (p === 'proxy' || p === 'webspeech') return p;
+        return 'auto';
+    }
+
+    function resolveTtsEngine() {
+        var pref = getTtsEnginePreference();
+        if (pref === 'proxy') {
+            if (ttsProxyUrl) return 'proxy';
+            if (_wsSynth) return 'webspeech';
+            return null;
+        }
+        if (pref === 'webspeech') {
+            if (_wsSynth) return 'webspeech';
+            return null;
+        }
+        if (ttsProxyUrl) return 'proxy';
+        if (_wsSynth) return 'webspeech';
+        return null;
+    }
+
+    function setTtsButtonsAvailability(enabled) {
+        ['btn-tts', 'btn-tts-float'].forEach(function(id) {
+            var b = document.getElementById(id);
+            if (!b) return;
+            if (enabled) {
+                b.disabled = false;
+                b.title = 'Ouvir em voz alta';
+            } else {
+                b.disabled = true;
+                b.title = 'TTS não disponível neste dispositivo';
+            }
+        });
+    }
+
+    function updateTtsEngineHint() {
+        var hint = document.getElementById('tts-engine-hint');
+        if (!hint) return;
+        var pref = getTtsEnginePreference();
+        var active = ttsEngine;
+        if (pref === 'auto') {
+            if (active === 'proxy') {
+                hint.textContent = 'Ativo: Backend (nuvem). Auto escolheu a melhor opção disponível.';
+            } else if (active === 'webspeech') {
+                hint.textContent = 'Ativo: Navegador. Auto usou a voz do dispositivo (nuvem indisponível).';
+            } else {
+                hint.textContent = 'Automático: nuvem quando disponível; senão voz do navegador.';
+            }
+            return;
+        }
+        if (pref === 'proxy') {
+            if (active === 'proxy') {
+                hint.textContent = 'Backend (nuvem): vozes neurais via servidor. Recomendado na TV.';
+            } else if (active === 'webspeech') {
+                hint.textContent = 'Backend indisponível neste momento — a usar Navegador.';
+            } else {
+                hint.textContent = 'Backend não disponível (sem configuração da nuvem).';
+            }
+            return;
+        }
+        if (active === 'webspeech') {
+            hint.textContent = 'Navegador: vozes instaladas no dispositivo. Pode variar entre TV e PC.';
+        } else {
+            hint.textContent = 'Navegador não disponível neste dispositivo.';
+        }
+    }
+
+    function syncTtsEngineSelectUi() {
+        var sel = document.getElementById('tts-engine-select');
+        if (!sel) return;
+        var pref = getTtsEnginePreference();
+        sel.value = (pref === 'proxy' || pref === 'webspeech') ? pref : 'auto';
+        var optProxy = sel.querySelector('option[value="proxy"]');
+        var optWs = sel.querySelector('option[value="webspeech"]');
+        if (optProxy) optProxy.disabled = !ttsProxyUrl;
+        if (optWs) optWs.disabled = !_wsSynth;
+        updateTtsEngineHint();
+    }
+
+    function applyTtsEngineFromPreference(opts) {
+        opts = opts || {};
+        var prev = ttsEngine;
+        var resolved = resolveTtsEngine();
+        ttsEngine = resolved;
+        if (resolved === 'proxy') {
+            setTtsButtonsAvailability(true);
             _populateEdgeVoices();
-        } else if (_wsSynth) {
-            ttsEngine = 'webspeech';
+        } else if (resolved === 'webspeech') {
+            setTtsButtonsAvailability(true);
             _initWebSpeechVoices();
         } else {
-            ttsEngine = null;
-            ['btn-tts', 'btn-tts-float'].forEach(function(id) {
-                var b = document.getElementById(id);
-                if (b) { b.disabled = true; b.title = 'TTS não disponível neste dispositivo'; }
-            });
+            setTtsButtonsAvailability(false);
         }
+        syncTtsEngineSelectUi();
+        if (opts.invalidateCache !== false && prev !== resolved) invalidateTtsAudioCache();
+        return resolved;
+    }
+
+    /* Chamada após initSupabaseClient() determinar a config disponível */
+    function initTtsEngine() {
+        var cfg = window.READERA_SUPABASE;
+        ttsProxyUrl = (cfg && cfg.url) ? (cfg.url + '/functions/v1/tts-proxy') : null;
+        applyTtsEngineFromPreference({ invalidateCache: false });
     }
 
     function _populateEdgeVoices() {
@@ -1180,6 +1541,22 @@ var safeStorage = (function() {
     }
 
     document.getElementById('continuous-read').addEventListener('change', schedulePushUserPreferences);
+    var ttsEngineSelect = document.getElementById('tts-engine-select');
+    if (ttsEngineSelect) {
+        ttsEngineSelect.addEventListener('change', function() {
+            var val = ttsEngineSelect.value;
+            if (val !== 'auto' && val !== 'proxy' && val !== 'webspeech') val = 'auto';
+            safeStorage.setItem(LS_TTS_ENGINE, val);
+            if (isReading) stopTTS({ resetBookmark: false });
+            var resolved = applyTtsEngineFromPreference();
+            if (val === 'proxy' && resolved !== 'proxy') {
+                showNotification('Backend indisponível — a usar Navegador.', true);
+            } else if (val === 'webspeech' && resolved !== 'webspeech') {
+                showNotification('Navegador sem voz disponível neste aparelho.', true);
+            }
+            schedulePushUserPreferences();
+        });
+    }
     voiceSelect.addEventListener('change', function() {
         safeStorage.setItem('readera-voice-key', voiceSelect.value);
         invalidateTtsAudioCache();
@@ -1772,9 +2149,10 @@ var safeStorage = (function() {
             console.error('[TTS proxy] erro ao reproduzir áudio da URL:', url);
             stopTTS();
             showTtsToast('Erro no áudio. Tentando modo alternativo…');
-            if (_wsSynth && capturedText) {
+            if (getTtsEnginePreference() === 'auto' && _wsSynth && capturedText) {
                 ttsEngine = 'webspeech';
                 _initWebSpeechVoices();
+                syncTtsEngineSelectUi();
                 _executeSpeechWebSpeech(capturedText, capturedRanges);
             }
         };
@@ -1979,6 +2357,10 @@ var safeStorage = (function() {
             screen.classList.add('open');
             screen.setAttribute('aria-hidden', 'false');
             btn.setAttribute('aria-expanded', 'true');
+            if (window._refreshSettingsScrollNav) {
+                setTimeout(window._refreshSettingsScrollNav, 60);
+                setTimeout(window._refreshSettingsScrollNav, 400);
+            }
         }
         btn.addEventListener('click', function(e) {
             e.stopPropagation();
@@ -2016,7 +2398,7 @@ var safeStorage = (function() {
             resetBtn.addEventListener('click', function() {
                 if (!confirm('Apagar todas as preferências guardadas neste browser (tema, opções, ID do último documento)?\n\nA página será recarregada.')) return;
                 ['readera-theme','readera-hide-chrome','readera-reading-mode',
-                 LS_AUTO_CLOUD,LS_RESUME_CLOUD,LS_LAST_CLOUD_DOC,'readera-voice-key']
+                 LS_AUTO_CLOUD,LS_RESUME_CLOUD,LS_LAST_CLOUD_DOC,'readera-voice-key',LS_TTS_ENGINE]
                     .forEach(function(k) { safeStorage.removeItem(k); });
                 location.reload();
             });
@@ -2025,6 +2407,78 @@ var safeStorage = (function() {
         applyUiPrefs();
     }
 
+    function wireScrollNavControls() {
+        function attachScrollNav(opts) {
+            var container = opts.container;
+            var upBtn = opts.upBtn;
+            var downBtn = opts.downBtn;
+            var stack = opts.stack;
+            if (!container || !upBtn || !downBtn) return null;
+            var stepRatio = opts.stepRatio || 0.55;
+
+            function maxScroll() {
+                return Math.max(0, container.scrollHeight - container.clientHeight);
+            }
+
+            function updateState() {
+                var max = maxScroll();
+                var st = container.scrollTop;
+                var canScroll = max > 4;
+                if (stack) stack.classList.toggle('is-dimmed', !canScroll);
+                upBtn.disabled = !canScroll || st <= 2;
+                downBtn.disabled = !canScroll || st >= max - 2;
+            }
+
+            function scrollByDir(dir) {
+                var delta = container.clientHeight * stepRatio * dir;
+                try {
+                    container.scrollBy({ top: delta, behavior: 'smooth' });
+                } catch (e) {
+                    container.scrollTop += delta;
+                }
+                setTimeout(updateState, 400);
+            }
+
+            upBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                scrollByDir(-1);
+            });
+            downBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                scrollByDir(1);
+            });
+            container.addEventListener('scroll', updateState);
+            window.addEventListener('resize', updateState);
+            updateState();
+            return { refresh: updateState };
+        }
+
+        var settingsNav = attachScrollNav({
+            container: document.getElementById('settings-screen-scroll'),
+            upBtn: document.getElementById('btn-settings-scroll-up'),
+            downBtn: document.getElementById('btn-settings-scroll-down'),
+            stack: document.getElementById('settings-scroll-nav'),
+            stepRatio: 0.5
+        });
+        var viewer = document.getElementById('viewer-container');
+        var readerNav = attachScrollNav({
+            container: viewer,
+            upBtn: document.getElementById('btn-reader-scroll-up'),
+            downBtn: document.getElementById('btn-reader-scroll-down'),
+            stack: document.getElementById('reader-scroll-nav'),
+            stepRatio: 0.55
+        });
+        window._refreshSettingsScrollNav = settingsNav ? settingsNav.refresh : null;
+        window._refreshReaderScrollNav = readerNav ? readerNav.refresh : null;
+        if (viewer && readerNav) {
+            var obs = new MutationObserver(function() {
+                readerNav.refresh();
+            });
+            obs.observe(viewer, { childList: true, subtree: true });
+        }
+    }
+
+    wireScrollNavControls();
     wireSettingsUi();
 
     document.addEventListener('visibilitychange', function() {
@@ -2226,18 +2680,172 @@ var safeStorage = (function() {
     function updateCloudChrome() {
         var saveBtn = document.getElementById('btn-cloud-save');
         var delBtn  = document.getElementById('btn-cloud-delete');
-        var lib     = document.getElementById('cloud-library');
-        if (!saveBtn || !lib) return;
+        var libWrap = document.getElementById('cloud-library-wrap');
+        if (!saveBtn || !libWrap) return;
         var on = !!readeraSb;
         /* Em TVs o classList.toggle com segundo argumento pode não funcionar em WebKit antigo */
-        if (on) { lib.classList.remove('hidden'); } else { lib.classList.add('hidden'); }
+        if (on) { libWrap.classList.remove('hidden'); } else { libWrap.classList.add('hidden'); }
         if (on && pdfDoc) { saveBtn.classList.remove('hidden'); } else { saveBtn.classList.add('hidden'); }
         saveBtn.disabled = !on || !pdfDoc || !pdfCacheBytes || !!cloudDocumentId || cloudSyncInFlight;
         if (delBtn) {
-            if (on && pdfDoc) { delBtn.classList.remove('hidden'); } else { delBtn.classList.add('hidden'); }
-            delBtn.disabled = !on || !pdfDoc || !cloudDocumentId || cloudSyncInFlight;
+            if (on && cloudLibraryCount > 0) { delBtn.classList.remove('hidden'); } else { delBtn.classList.add('hidden'); }
+            delBtn.disabled = !on || cloudLibraryCount === 0 || cloudSyncInFlight;
         }
         updateCloudPrefsVisibility();
+    }
+
+    function positionCloudLibraryPanel() {
+        var panel = document.getElementById('cloud-library-panel');
+        var trigger = document.getElementById('cloud-library-trigger');
+        if (!panel || !trigger) return;
+        var r = trigger.getBoundingClientRect();
+        var gap = 6;
+        var panelW = Math.min(Math.max(r.width, 280), Math.min(380, window.innerWidth - 16));
+        var left = r.right - panelW;
+        if (left < 8) left = 8;
+        if (left + panelW > window.innerWidth - 8) left = window.innerWidth - 8 - panelW;
+        var top = r.bottom + gap;
+        var maxH = Math.min(window.innerHeight * 0.5, 360);
+        if (top + maxH > window.innerHeight - 8) {
+            top = Math.max(8, r.top - gap - maxH);
+        }
+        panel.style.width = panelW + 'px';
+        panel.style.left = left + 'px';
+        panel.style.top = top + 'px';
+        panel.style.right = 'auto';
+        panel.style.maxHeight = maxH + 'px';
+    }
+
+    function setCloudLibraryPanelOpen(open) {
+        var panel = document.getElementById('cloud-library-panel');
+        var trigger = document.getElementById('cloud-library-trigger');
+        var wrap = document.getElementById('cloud-library-wrap');
+        cloudLibraryPanelOpen = !!open;
+        if (panel) {
+            if (open) {
+                if (wrap && panel.parentNode !== document.body) {
+                    document.body.appendChild(panel);
+                }
+                panel.classList.remove('hidden');
+                positionCloudLibraryPanel();
+            } else {
+                panel.classList.add('hidden');
+                if (wrap && panel.parentNode !== wrap) {
+                    wrap.appendChild(panel);
+                }
+            }
+        }
+        if (trigger) trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    function closeCloudLibraryPanel() {
+        setCloudLibraryPanelOpen(false);
+    }
+
+    function resetCloudLibraryTrigger() {
+        var trigger = document.getElementById('cloud-library-trigger');
+        if (trigger) trigger.textContent = '☁️ Meus PDFs…';
+    }
+
+    function renderCloudLibraryList(rows) {
+        var panel = document.getElementById('cloud-library-panel');
+        if (!panel) return;
+        panel.innerHTML = '';
+        var list = rows || [];
+        cloudLibraryCount = list.length;
+        if (!list.length) {
+            var empty = document.createElement('div');
+            empty.className = 'cloud-library-empty';
+            empty.textContent = 'Nenhum PDF na nuvem.';
+            panel.appendChild(empty);
+            updateCloudChrome();
+            return;
+        }
+        list.forEach(function(row) {
+            var item = document.createElement('div');
+            item.className = 'cloud-library-item';
+            item.setAttribute('role', 'option');
+
+            var openBtn = document.createElement('button');
+            openBtn.type = 'button';
+            openBtn.className = 'cloud-library-item-name';
+            openBtn.textContent = row.title || row.id;
+            openBtn.title = 'Abrir — última página: ' + (row.last_page || 1);
+            openBtn.addEventListener('click', function() {
+                openCloudDocumentById(row.id);
+            });
+
+            var delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'cloud-library-item-del';
+            delBtn.title = 'Apagar da nuvem';
+            delBtn.setAttribute('aria-label', 'Apagar ' + (row.title || row.id) + ' da nuvem');
+            delBtn.textContent = '🗑';
+            delBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                deleteCloudDocumentById(row.id, row.title || row.id);
+            });
+
+            item.appendChild(openBtn);
+            item.appendChild(delBtn);
+            panel.appendChild(item);
+        });
+        updateCloudChrome();
+    }
+
+    function toggleCloudLibraryPanel() {
+        if (!readeraSb) return;
+        if (cloudLibraryPanelOpen) {
+            closeCloudLibraryPanel();
+            return;
+        }
+        cloudLibrarySuppressClose = true;
+        setCloudLibraryPanelOpen(true);
+        refreshCloudLibrary().catch(function() {});
+        setTimeout(function() { cloudLibrarySuppressClose = false; }, 0);
+    }
+
+    function bindCloudLibraryUi() {
+        var wrap = document.getElementById('cloud-library-wrap');
+        var trigger = document.getElementById('cloud-library-trigger');
+        if (!wrap || !trigger || trigger._cloudLibBound) return;
+        trigger._cloudLibBound = true;
+        var touchToggleLock = false;
+        function onTriggerActivate(e) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            toggleCloudLibraryPanel();
+        }
+        trigger.addEventListener('click', function(e) {
+            if (touchToggleLock) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            onTriggerActivate(e);
+        });
+        trigger.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            touchToggleLock = true;
+            onTriggerActivate(e);
+            setTimeout(function() { touchToggleLock = false; }, 450);
+        }, { passive: false });
+        if (!window._cloudLibraryOutsideBound) {
+            window._cloudLibraryOutsideBound = true;
+            document.addEventListener('click', function(e) {
+                if (cloudLibrarySuppressClose) return;
+                var panel = document.getElementById('cloud-library-panel');
+                if (panel && panel.contains(e.target)) return;
+                if (trigger && trigger.contains(e.target)) return;
+                if (cloudLibraryPanelOpen) closeCloudLibraryPanel();
+            });
+            window.addEventListener('resize', function() {
+                if (cloudLibraryPanelOpen) positionCloudLibraryPanel();
+            });
+        }
     }
 
     function initSupabaseClient() {
@@ -2281,15 +2889,15 @@ var safeStorage = (function() {
             return;
         }
         setCloudBadge('on', 'Nuvem ligada — PDFs em Storage e metadados na base');
+        if (!cloudUiBound) {
+            cloudUiBound = true;
+            document.getElementById('btn-cloud-save').addEventListener('click', savePdfToCloud);
+            var delBtn = document.getElementById('btn-cloud-delete');
+            if (delBtn) delBtn.addEventListener('click', deleteAllCloudDocuments);
+            bindCloudLibraryUi();
+        }
         refreshCloudLibrary().then(function() {
             updateCloudChrome();
-            if (!cloudUiBound) {
-                cloudUiBound = true;
-                document.getElementById('btn-cloud-save').addEventListener('click', savePdfToCloud);
-                var delBtn = document.getElementById('btn-cloud-delete');
-                if (delBtn) delBtn.addEventListener('click', deleteCurrentCloudDocument);
-                document.getElementById('cloud-library').addEventListener('change', onCloudLibraryChange);
-            }
             return tryResumeLastCloudDocument();
         }).catch(function(err) {
             readeraSb = null;
@@ -2308,64 +2916,82 @@ var safeStorage = (function() {
     function pushUserPreferences() { return Promise.resolve(); }
 
     function refreshCloudLibrary() {
-        var sel = document.getElementById('cloud-library');
-        if (!readeraSb || !sel) return Promise.resolve();
+        if (!readeraSb) return Promise.resolve();
         return readeraSb.from('documents')
             .select('id, title, last_page, updated_at')
             .order('updated_at', { ascending: false })
             .limit(50)
             .then(function(result) {
                 var data = result.data, error = result.error;
-                var prev = sel.value;
-                sel.innerHTML = '';
-                var opt0 = document.createElement('option');
-                opt0.value = ''; opt0.textContent = '☁️ Meus PDFs…';
-                sel.appendChild(opt0);
-                if (error) { console.warn(error); return; }
-                (data || []).forEach(function(row) {
-                    var o = document.createElement('option');
-                    o.value = row.id;
-                    o.textContent = row.title || row.id;
-                    o.title = 'Última página: ' + (row.last_page || 1);
-                    sel.appendChild(o);
-                });
-                var opts = Array.prototype.slice.call(sel.options);
-                if (prev && opts.some(function(o) { return o.value === prev; })) sel.value = prev;
+                if (error) {
+                    console.warn(error);
+                    renderCloudLibraryList([]);
+                    return;
+                }
+                renderCloudLibraryList(data || []);
+                resetCloudLibraryTrigger();
             });
     }
 
-    function onCloudLibraryChange(e) {
-        var id = e.target.value;
+    function downloadPdfFromStoragePath(storagePath) {
+        if (!storagePath || !readeraSb) {
+            return Promise.reject(new Error('Caminho do arquivo inválido'));
+        }
+        var pubData = readeraSb.storage.from('pdfs').getPublicUrl(storagePath).data;
+        var publicUrl = pubData && pubData.publicUrl;
+        if (publicUrl) {
+            return _downloadArrayBufferXhr(publicUrl).catch(function() {
+                return _createSignedUrlXhr('pdfs', storagePath, 3600).then(function(signed) {
+                    return _downloadArrayBufferXhr(signed);
+                });
+            });
+        }
+        return _createSignedUrlXhr('pdfs', storagePath, 3600).then(function(signed) {
+            return _downloadArrayBufferXhr(signed);
+        });
+    }
+
+    function openCloudDocumentById(id) {
         if (!id || !readeraSb) return;
-        loading.classList.remove('hidden');
+        closeCloudLibraryPanel();
+        var gen = ++cloudLoadGen;
+        setAppLoading(true, 'Carregando PDF da nuvem…');
+        teardownCurrentPdf();
         readeraSb.from('documents').select('id, title, storage_path, last_page').eq('id', id).single()
             .then(function(result) {
+                if (gen !== cloudLoadGen) return;
                 var row = result.data, error = result.error;
                 if (error || !row) throw error || new Error('Documento não encontrado');
-                return openCloudDocumentFromRow(row, true);
+                return openCloudDocumentFromRow(row, true, gen);
             }).catch(function(err) {
+                if (gen !== cloudLoadGen) return;
                 console.error(err);
-                showTtsToast('Erro ao abrir da nuvem: ' + String(err.message || err).slice(0, 80));
+                var msg = String((err && err.message) || err || 'Erro desconhecido');
+                if (msg.indexOf('cancel') === -1) {
+                    showNotification('Erro ao abrir da nuvem: ' + msg.slice(0, 120), true);
+                }
             }).then(function() {
-                loading.classList.add('hidden');
+                if (gen === cloudLoadGen) setAppLoading(false);
             });
     }
 
-    function openCloudDocumentFromRow(row, resetSelectValue) {
-        /* Bucket 'pdfs' é PÚBLICO → getPublicUrl() é SÍNCRONO */
-        var pubData = readeraSb.storage.from('pdfs').getPublicUrl(row.storage_path).data;
-        var publicUrl = pubData && pubData.publicUrl;
-        if (!publicUrl) return Promise.reject(new Error('Não foi possível construir URL pública do arquivo'));
-        return _downloadArrayBufferXhr(publicUrl).then(function(buf) {
+    function openCloudDocumentFromRow(row, resetSelectValue, loadGen) {
+        if (loadGen == null) loadGen = cloudLoadGen;
+        if (!row || !row.storage_path) {
+            return Promise.reject(new Error('Documento sem arquivo na nuvem'));
+        }
+        return downloadPdfFromStoragePath(row.storage_path).then(function(buf) {
+            if (loadGen !== cloudLoadGen) return Promise.reject(new Error('cancelled'));
+            if (!buf || !buf.byteLength) throw new Error('Arquivo PDF vazio');
             lastOpenedFileName = row.title || 'documento.pdf';
-            return loadPdfFromArrayBuffer(buf, { documentId: row.id, initialPage: row.last_page || 1 });
+            currentBookTitle = lastOpenedFileName;
+            return loadPdfFromArrayBuffer(buf, {
+                documentId: row.id,
+                initialPage: row.last_page || 1
+            }, loadGen);
         }).then(function() {
-            if (resetSelectValue) {
-                var sel = document.getElementById('cloud-library');
-                if (sel) sel.value = '';
-            }
-        }).catch(function(eDl) {
-            throw new Error('Download do PDF falhou: ' + (eDl.message || eDl));
+            if (loadGen !== cloudLoadGen) return;
+            if (resetSelectValue) resetCloudLibraryTrigger();
         });
     }
 
@@ -2378,12 +3004,13 @@ var safeStorage = (function() {
             .then(function(result) {
                 var row = result.data, error = result.error;
                 if (error || !row) { persistLastCloudDocId(null); return; }
-                loading.classList.remove('hidden');
-                return openCloudDocumentFromRow(row, false).catch(function(err) {
+                var gen = ++cloudLoadGen;
+                setAppLoading(true, 'Abrindo último PDF da nuvem…');
+                return openCloudDocumentFromRow(row, false, gen).catch(function(err) {
                     console.warn('Retoma nuvem:', err);
                     persistLastCloudDocId(null);
                 }).then(function() {
-                    loading.classList.add('hidden');
+                    if (gen === cloudLoadGen) setAppLoading(false);
                 });
             });
     }
@@ -2423,12 +3050,20 @@ var safeStorage = (function() {
         });
     }
 
-    function deleteCurrentCloudDocument() {
-        if (!readeraSb || !cloudDocumentId || !pdfDoc) return;
-        var label = lastOpenedFileName || 'este documento';
-        if (!confirm('Remover da nuvem?\n\n' + label + '\n\nO ficheiro no Storage e o registo na base serão apagados. O PDF continua aberto neste separador (só deixa de estar sincronizado).')) return;
-        var id = cloudDocumentId;
-        loading.classList.remove('hidden');
+    function clearCloudLinkForDocument(id) {
+        if (cloudDocumentId === id) {
+            cloudDocumentId = null;
+            if (pdfDoc) stopTTS({ resetBookmark: true });
+        }
+        if (safeStorage.getItem(LS_LAST_CLOUD_DOC) === id) persistLastCloudDocId(null);
+    }
+
+    function deleteCloudDocumentById(id, title) {
+        if (!readeraSb || !id) return;
+        var label = title || id;
+        if (!confirm('Remover da nuvem?\n\n' + label + '\n\nO ficheiro no Storage e o registo na base serão apagados.')) return;
+        closeCloudLibraryPanel();
+        setAppLoading(true, 'A apagar da nuvem…');
         readeraSb.from('documents').select('storage_path').eq('id', id).single()
             .then(function(r) {
                 if (r.error || !r.data || !r.data.storage_path) throw r.error || new Error('Metadados do documento não encontrados');
@@ -2438,18 +3073,52 @@ var safeStorage = (function() {
                 return readeraSb.from('documents').delete().eq('id', id);
             }).then(function(r) {
                 if (r.error) throw r.error;
-                cloudDocumentId = null;
-                if (safeStorage.getItem(LS_LAST_CLOUD_DOC) === id) persistLastCloudDocId(null);
-                stopTTS({ resetBookmark: true });
+                clearCloudLinkForDocument(id);
                 return refreshCloudLibrary();
             }).then(function() {
                 updateCloudChrome();
                 showNotification('PDF removido da nuvem.', false);
             }).catch(function(err) {
                 console.error(err);
-                showNotification('Erro ao apagar na nuvem: ' + (err.message || err));
+                showNotification('Erro ao apagar na nuvem: ' + (err.message || err), true);
             }).then(function() {
-                loading.classList.add('hidden');
+                setAppLoading(false);
+            });
+    }
+
+    function deleteAllCloudDocuments() {
+        if (!readeraSb || cloudLibraryCount === 0) return;
+        if (!confirm('Apagar TODOS os PDFs da nuvem?\n\nSerão removidos ' + cloudLibraryCount + ' ficheiro(s) no Storage e todos os registos na base de dados.\n\nEsta ação não pode ser desfeita.')) return;
+        closeCloudLibraryPanel();
+        setAppLoading(true, 'A apagar todos os PDFs da nuvem…');
+        readeraSb.from('documents').select('id, storage_path')
+            .then(function(r) {
+                if (r.error) throw r.error;
+                var rows = r.data || [];
+                if (!rows.length) return { ids: [], paths: [] };
+                var ids = rows.map(function(row) { return row.id; }).filter(Boolean);
+                var paths = rows.map(function(row) { return row.storage_path; }).filter(Boolean);
+                return readeraSb.storage.from('pdfs').remove(paths).then(function(sr) {
+                    if (sr.error) throw sr.error;
+                    return { ids: ids, paths: paths };
+                });
+            }).then(function(meta) {
+                if (!meta || !meta.ids || !meta.ids.length) return;
+                return readeraSb.from('documents').delete().in('id', meta.ids);
+            }).then(function(r) {
+                if (r && r.error) throw r.error;
+                cloudDocumentId = null;
+                persistLastCloudDocId(null);
+                if (pdfDoc) stopTTS({ resetBookmark: true });
+                return refreshCloudLibrary();
+            }).then(function() {
+                updateCloudChrome();
+                showNotification('Todos os PDFs foram removidos da nuvem.', false);
+            }).catch(function(err) {
+                console.error(err);
+                showNotification('Erro ao apagar todos na nuvem: ' + (err.message || err), true);
+            }).then(function() {
+                setAppLoading(false);
             });
     }
 
@@ -2472,18 +3141,31 @@ var safeStorage = (function() {
         });
     }
 
-    function loadPdfFromArrayBuffer(arrayBuffer, opts) {
+    function loadPdfFromArrayBuffer(arrayBuffer, opts, loadGen) {
         if (!pdfjsLib) {
             showNotification('PDF.js não está disponível. Verifique a ligação ou extensões do navegador.');
             return Promise.resolve();
         }
-        loading.classList.remove('hidden');
-        stopTTS();
+        if (loadGen == null) loadGen = cloudLoadGen;
+        setAppLoading(true, 'Carregando PDF…');
+        abortPdfLoadingTask();
+        stopTTS({ resetBookmark: true });
+        isRendering = false;
+        renderGen++;
         var copy = arrayBuffer.slice ? arrayBuffer.slice(0) : arrayBuffer;
         var typedarray = new Uint8Array(copy);
         pdfCacheBytes = typedarray;
-        return pdfjsLib.getDocument({ data: typedarray }).promise.then(function(doc) {
+        pdfLoadingTask = pdfjsLib.getDocument({ data: typedarray });
+        return pdfLoadingTask.promise.then(function(doc) {
+            if (loadGen !== cloudLoadGen) {
+                try { doc.destroy(); } catch (e) {}
+                return Promise.reject(new Error('cancelled'));
+            }
+            if (pdfDoc && pdfDoc !== doc && pdfDoc.destroy) {
+                try { pdfDoc.destroy(); } catch (e) {}
+            }
             pdfDoc = doc;
+            pdfLoadingTask = null;
             cloudDocumentId = opts && opts.documentId ? opts.documentId : null;
             document.getElementById('welcome').classList.add('hidden');
             document.getElementById('nav-controls').classList.remove('hidden');
@@ -2495,29 +3177,38 @@ var safeStorage = (function() {
             currentBookTitle = lastOpenedFileName || 'Lendo Livro PDF';
             return renderPage(pageNum);
         }).then(function() {
+            if (loadGen !== cloudLoadGen) return;
             updateCloudChrome();
             if (cloudDocumentId) persistLastCloudDocId(cloudDocumentId);
             if (!cloudDocumentId && pdfCacheBytes && readeraSb && safeStorage.getItem(LS_AUTO_CLOUD) !== '0') {
                 attemptAutoCloudSync();
             }
         }).catch(function(err) {
-            showNotification('Erro ao abrir PDF: ' + (err.message || err));
+            if (loadGen !== cloudLoadGen) return;
+            var msg = String((err && err.message) || err || '');
+            if (msg.indexOf('cancel') === -1) {
+                showNotification('Erro ao abrir PDF: ' + msg.slice(0, 120), true);
+            }
         }).then(function() {
-            loading.classList.add('hidden');
+            if (loadGen === cloudLoadGen) setAppLoading(false);
         });
     }
 
     fileInput.onchange = function(e) {
         var file = e.target.files[0];
         if (!file) return;
+        var gen = ++cloudLoadGen;
         persistLastCloudDocId(null);
+        cloudDocumentId = null;
         lastOpenedFileName = file.name;
         currentBookTitle = file.name;
+        teardownCurrentPdf();
         var reader = new FileReader();
         reader.onload = function() {
-            loadPdfFromArrayBuffer(this.result, { initialPage: 1 });
+            loadPdfFromArrayBuffer(this.result, { initialPage: 1 }, gen);
         };
         reader.readAsArrayBuffer(file);
+        e.target.value = '';
     };
 
     /* Largura útil do PDF: em paisagem virtual usa o lado longo do ecrã (não clientWidth pré-giro) */
@@ -2542,6 +3233,7 @@ var safeStorage = (function() {
     function renderPage(num, skipStopTts) {
         if (!pdfjsLib || !pdfDoc) return Promise.resolve();
         if (isReading && !skipStopTts) stopTTS();
+        var myRender = ++renderGen;
         isRendering = true;
         ttsPageCache = { pageNum: null, text: '', ranges: [] };
         if (ttsAudioCache.pageNum !== num) {
@@ -2556,6 +3248,7 @@ var safeStorage = (function() {
         pdfTextLayerSpans = null;
 
         return pdfDoc.getPage(num).then(function(page) {
+            if (myRender !== renderGen) return Promise.resolve();
             var viewer = document.getElementById('viewer-container');
             var maxW = getPdfFitMaxWidth(viewer);
             var vp1 = page.getViewport({ scale: 1 });
@@ -2603,8 +3296,10 @@ var safeStorage = (function() {
             inner.style.transformOrigin = 'top left';
 
             return page.render({ canvasContext: context, viewport: viewport }).promise.then(function() {
+                if (myRender !== renderGen) return Promise.resolve();
                 return page.getTextContent();
             }).then(function(textContent) {
+                if (myRender !== renderGen) return Promise.resolve();
                 pdfTextLayerSpans = buildPdfTextLayer(viewport, textContent, textLayer);
                 var ttsBuilt = buildTtsTextAndRanges(textContent.items || []);
                 ttsPageCache = { pageNum: num, text: ttsBuilt.text, ranges: ttsBuilt.ranges };
@@ -2625,14 +3320,20 @@ var safeStorage = (function() {
                 }
             });
         }).catch(function(err) {
-            showNotification('Erro ao renderizar página: ' + (err && err.message || String(err)));
+            if (myRender === renderGen) {
+                showNotification('Erro ao renderizar página: ' + (err && err.message || String(err)));
+            }
         }).then(function() {
+            if (myRender !== renderGen) return;
             isRendering = false;
             ['btn-tts', 'btn-tts-float'].forEach(function(id) {
                 var b = document.getElementById(id);
                 if (b) b.disabled = false;
             });
             updateLayoutToggleVisible();
+            if (window._refreshReaderScrollNav) {
+                setTimeout(window._refreshReaderScrollNav, 50);
+            }
         });
     }
 
