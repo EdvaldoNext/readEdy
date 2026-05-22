@@ -1354,6 +1354,8 @@ var safeStorage = (function() {
     var cloudLoadGen = 0;
     var renderGen = 0;
     var pdfLoadingTask = null;
+    var _pendingPageJump = null;   /* salto enfileirado enquanto renderização está em curso */
+    var _renderingWatchdog = null; /* timer de segurança para resetar isRendering em TVs lentas */
 
     var fileInput = document.getElementById('file-input');
     var loading = document.getElementById('loading');
@@ -3630,6 +3632,17 @@ var safeStorage = (function() {
         if (isReading && !skipStopTts) stopTTS();
         var myRender = ++renderGen;
         isRendering = true;
+        /* Watchdog para TVs/dispositivos lentos: se o render travar por mais de 12 s,
+           força o reset e executa qualquer salto pendente para não deixar o app preso. */
+        if (_renderingWatchdog) clearTimeout(_renderingWatchdog);
+        _renderingWatchdog = setTimeout(function() {
+            _renderingWatchdog = null;
+            if (!isRendering) return;
+            isRendering = false;
+            var jump = _pendingPageJump;
+            _pendingPageJump = null;
+            if (jump !== null) setTimeout(function() { goToPage(jump); }, 50);
+        }, 12000);
         ttsPageCache = { pageNum: null, text: '', ranges: [] };
         if (ttsAudioCache.pageNum !== num) {
             ttsAudioCache = { pageNum: null, url: null, ready: false, error: false, key: null };
@@ -3720,6 +3733,7 @@ var safeStorage = (function() {
             }
         }).then(function() {
             if (myRender !== renderGen) return;
+            if (_renderingWatchdog) { clearTimeout(_renderingWatchdog); _renderingWatchdog = null; }
             isRendering = false;
             ['btn-tts', 'btn-tts-float'].forEach(function(id) {
                 var b = document.getElementById(id);
@@ -3729,6 +3743,10 @@ var safeStorage = (function() {
             if (window._refreshReaderScrollNav) {
                 setTimeout(window._refreshReaderScrollNav, 50);
             }
+            /* Executa salto de página enfileirado (ex.: clique em "Ir" durante renderização na TV). */
+            var jump = _pendingPageJump;
+            _pendingPageJump = null;
+            if (jump !== null) setTimeout(function() { goToPage(jump); }, 50);
         });
     }
 
@@ -3741,7 +3759,7 @@ var safeStorage = (function() {
     }
 
     function goToPage(target) {
-        if (!pdfDoc || isRendering) return;
+        if (!pdfDoc) return;
         const n = Math.floor(Number(target));
         if (!Number.isFinite(n)) {
             showTtsToast('Digite um número de página válido.');
@@ -3753,7 +3771,15 @@ var safeStorage = (function() {
             syncPageJumpInput();
             return;
         }
+        /* Se a renderização ainda está em curso (TVs lentas), enfileira o salto
+           em vez de descartar silenciosamente — o salto será executado ao final do render atual. */
+        if (isRendering) {
+            _pendingPageJump = n;
+            showTtsToast('Aguardando renderização…');
+            return;
+        }
         if (n === pageNum) return;
+        _pendingPageJump = null;
         resetTtsBookmark();
         pageNum = n;
         currentPageNum = pageNum;
