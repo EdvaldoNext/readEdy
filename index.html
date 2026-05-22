@@ -380,6 +380,15 @@
             flex: 1;
             min-height: 0;
             position: relative;
+            display: -webkit-box;
+            display: -webkit-flex;
+            display: -ms-flexbox;
+            display: flex;
+            -webkit-box-orient: vertical;
+            -webkit-box-direction: normal;
+            -webkit-flex-direction: column;
+            -ms-flex-direction: column;
+            flex-direction: column;
         }
         .settings-screen-header {
             display: -webkit-box;
@@ -415,8 +424,12 @@
             -webkit-flex: 1;
             -ms-flex: 1;
             flex: 1;
+            min-height: 0;
             overflow-y: auto;
+            overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            touch-action: pan-y;
             padding: 16px 14px 28px;
             box-sizing: border-box;
         }
@@ -2126,10 +2139,22 @@ var safeStorage = (function() {
             chain = ttsPreparePageForBackgroundRead(pageNum).then(_unlockAndSpeak);
         } else {
             ttsPendingRenderPage = null;
-            /* ttsNextPageCache não é usado pelo renderPage; limpar após o avanço */
-            chain = renderPage(pageNum, true).then(function() {
+            /* Consumir texto pré-carregado da próxima página (leitura contínua). */
+            if (ttsNextPageCache.pageNum === pageNum && ttsNextPageCache.text) {
+                ttsPageCache = { pageNum: pageNum, text: ttsNextPageCache.text, ranges: ttsNextPageCache.ranges || [] };
                 ttsNextPageCache = { pageNum: null, text: '', ranges: [] };
-                return _unlockAndSpeak();
+            }
+            var piAdv = document.getElementById('page-info');
+            if (piAdv && pdfDoc) piAdv.textContent = pageNum + ' / ' + pdfDoc.numPages;
+            syncPageJumpInput(true);
+            scheduleCloudProgress();
+            /* Mobile: iniciar áudio ANTES do render — render lento não deve bloquear a sequência. */
+            speakLock = false;
+            var speakP = speakCurrentPage();
+            chain = Promise.resolve(speakP).then(function() {
+                return renderPage(pageNum, true);
+            }).then(function() {
+                ttsNextPageCache = { pageNum: null, text: '', ranges: [] };
             });
         }
         return chain.then(done, function(err) {
@@ -2814,7 +2839,21 @@ var safeStorage = (function() {
     wireSettingsUi();
 
     document.addEventListener('visibilitychange', function() {
-        if (!document.hidden) flushTtsPendingRender();
+        if (document.hidden) return;
+        flushTtsPendingRender();
+        /* Retomar avanço contínuo se o áudio parou em background (mobile). */
+        if (pdfDoc && !isReading && !speakLock && !ttsContinuousAdvanceLock && !document.body.classList.contains('tts-paused')) {
+            var contEl = document.getElementById('continuous-read');
+            if (contEl && contEl.checked && pageNum < pdfDoc.numPages) {
+                var pageText = (ttsPageCache.pageNum === pageNum && ttsPageCache.text) ? ttsPageCache.text : '';
+                var textLen = pageText.length;
+                var playedMost = textLen > 0 && ttsAbsCharEnd >= textLen * 0.85;
+                var audioEnded = !ttsAudioEl || ttsAudioEl.ended || !ttsAudioEl.src;
+                if (playedMost && audioEnded && ttsShouldAutoAdvancePage(pageNum, { fromEnded: true })) {
+                    setTimeout(function() { ttsAfterPagePlaybackFinished(pageNum); }, 120);
+                }
+            }
+        }
     });
     window.addEventListener('pageshow', function() {
         flushTtsPendingRender();
