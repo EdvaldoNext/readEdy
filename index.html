@@ -981,7 +981,7 @@
                     <div class="settings-field">
                         <span class="settings-field-label">Ir para página</span>
                         <div class="settings-field-control">
-                            <input type="number" id="page-jump-input" min="1" step="1" inputmode="numeric" placeholder="nº" title="Número da página (1 … total)">
+                            <input type="text" id="page-jump-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="go" placeholder="nº" title="Número da página (1 … total)">
                             <button type="button" id="btn-page-jump">Ir</button>
                         </div>
                     </div>
@@ -1356,6 +1356,8 @@ var safeStorage = (function() {
     var pdfLoadingTask = null;
     var _pendingPageJump = null;   /* salto enfileirado enquanto renderização está em curso */
     var _renderingWatchdog = null; /* timer de segurança para resetar isRendering em TVs lentas */
+    var _pageJumpDraft = '';       /* rascunho do número — teclado virtual da TV nem sempre grava em .value */
+    var _pageJumpInputFocused = false;
 
     var fileInput = document.getElementById('file-input');
     var loading = document.getElementById('loading');
@@ -3717,7 +3719,7 @@ var safeStorage = (function() {
                 document.getElementById('viewer-container').scrollTop = 0;
                 scheduleCloudProgress();
                 updateTtsButtonLabel();
-                syncPageJumpInput();
+                syncPageJumpInput(true);
 
                 if (ttsBuilt.text && ttsBuilt.text.trim()) {
                     preFetchTtsAudio(num, ttsBuilt.text);
@@ -3750,11 +3752,25 @@ var safeStorage = (function() {
         });
     }
 
-    function syncPageJumpInput() {
+    function capturePageJumpDraft(el) {
+        if (!el) return;
+        var v = String(el.value || '').replace(/\D/g, '');
+        if (v !== el.value) el.value = v;
+        _pageJumpDraft = v;
+    }
+
+    function readPageJumpValue(el) {
+        if (!el) return '';
+        capturePageJumpDraft(el);
+        return String(_pageJumpDraft || el.value || '').trim();
+    }
+
+    function syncPageJumpInput(force) {
         const el = document.getElementById('page-jump-input');
         if (!el || !pdfDoc) return;
-        el.min = '1';
-        el.max = String(pdfDoc.numPages);
+        /* Não apagar o que o utilizador está a digitar (teclado virtual da TV). */
+        if (!force && (_pageJumpInputFocused || _pageJumpDraft !== '')) return;
+        _pageJumpDraft = '';
         el.value = String(pageNum);
     }
 
@@ -3763,12 +3779,10 @@ var safeStorage = (function() {
         const n = Math.floor(Number(target));
         if (!Number.isFinite(n)) {
             showTtsToast('Digite um número de página válido.');
-            syncPageJumpInput();
             return;
         }
         if (n < 1 || n > pdfDoc.numPages) {
             showTtsToast('Fora do intervalo: 1 a ' + pdfDoc.numPages + ' páginas.');
-            syncPageJumpInput();
             return;
         }
         /* Se a renderização ainda está em curso (TVs lentas), enfileira o salto
@@ -3780,6 +3794,7 @@ var safeStorage = (function() {
         }
         if (n === pageNum) return;
         _pendingPageJump = null;
+        _pageJumpDraft = '';
         resetTtsBookmark();
         pageNum = n;
         currentPageNum = pageNum;
@@ -3789,12 +3804,20 @@ var safeStorage = (function() {
     function goToPageFromInput() {
         const el = document.getElementById('page-jump-input');
         if (!el || !pdfDoc) return;
-        const raw = String(el.value).trim();
+        const raw = readPageJumpValue(el);
         if (raw === '') {
-            syncPageJumpInput();
+            syncPageJumpInput(true);
             return;
         }
+        _pageJumpDraft = '';
         goToPage(parseInt(raw, 10));
+    }
+
+    function activatePageJumpFromInput() {
+        var el = document.getElementById('page-jump-input');
+        if (el && document.activeElement === el) el.blur();
+        /* TVs demoram a gravar o valor no DOM após fechar o teclado virtual. */
+        setTimeout(goToPageFromInput, 80);
     }
 
     function changePage(delta) {
@@ -3812,13 +3835,35 @@ var safeStorage = (function() {
         var inp = document.getElementById('page-jump-input');
         var btn = document.getElementById('btn-page-jump');
         if (!inp || !btn) return;
-        btn.addEventListener('click', goToPageFromInput);
-        inp.addEventListener('keydown', function(e) {
-            if (e.code === 'Enter' || e.keyCode === 13) {
+        var pageJumpTouchLock = false;
+        function onEnterKey(e) {
+            if (e.code === 'Enter' || e.key === 'Enter' || e.keyCode === 13) {
                 e.preventDefault();
-                goToPageFromInput();
+                activatePageJumpFromInput();
             }
+        }
+        inp.addEventListener('focus', function() { _pageJumpInputFocused = true; });
+        inp.addEventListener('input', function() { capturePageJumpDraft(inp); });
+        inp.addEventListener('change', function() { capturePageJumpDraft(inp); });
+        inp.addEventListener('blur', function() {
+            _pageJumpInputFocused = false;
+            capturePageJumpDraft(inp);
         });
+        inp.addEventListener('keydown', onEnterKey);
+        inp.addEventListener('keyup', onEnterKey);
+        btn.addEventListener('click', function(e) {
+            if (pageJumpTouchLock) {
+                e.preventDefault();
+                return;
+            }
+            activatePageJumpFromInput();
+        });
+        btn.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            pageJumpTouchLock = true;
+            activatePageJumpFromInput();
+            setTimeout(function() { pageJumpTouchLock = false; }, 450);
+        }, { passive: false });
     })();
 
     function pauseTTS() {
