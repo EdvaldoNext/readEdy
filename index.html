@@ -82,7 +82,7 @@
         header .header-actions { display: -webkit-box; display: -webkit-flex; display: -ms-flexbox; display: flex; -webkit-flex-wrap: wrap; -ms-flex-wrap: wrap; flex-wrap: wrap; gap: 8px; -webkit-box-align: center; -webkit-align-items: center; -ms-flex-align: center; align-items: center; -webkit-box-pack: end; -webkit-justify-content: flex-end; -ms-flex-pack: end; justify-content: flex-end; -webkit-box-flex: 1; -webkit-flex: 1; -ms-flex: 1; flex: 1; min-width: 0; }
         body.ui-chrome-hidden header { display: none; }
         #viewer-container { -webkit-box-flex: 1; -webkit-flex: 1; -ms-flex: 1; flex: 1; min-height: 0; min-width: 0; width: 100%; max-width: 100%; box-sizing: border-box; overflow: auto; overflow-x: hidden; display: -webkit-box; display: -webkit-flex; display: -ms-flexbox; display: flex; -webkit-box-orient: vertical; -webkit-box-direction: normal; -webkit-flex-direction: column; -ms-flex-direction: column; flex-direction: column; -webkit-align-items: stretch; -ms-flex-align: stretch; align-items: stretch; padding: 15px; padding-bottom: 15px; -webkit-overflow-scrolling: touch; }
-        body.pdf-is-open:not(.ui-chrome-hidden) #viewer-container { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+        body.pdf-is-open:not(.ui-chrome-hidden) #viewer-container { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
         body.pdf-is-open.ui-chrome-hidden #viewer-container { padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)); }
         #pdf-render-area { width: 100%; max-width: 100%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; flex: 0 0 auto; }
         #pdf-render-area .pdf-page-wrap { margin: 0 auto; max-width: 100%; }
@@ -191,7 +191,6 @@
             to { transform: scale(1.14); opacity: 0.88; }
         }
         .btn-tts-ui:disabled { opacity: 0.45; cursor: not-allowed; }
-        body.ui-chrome-hidden #btn-tts { display: none !important; }
         #btn-tts-float { display: none; }
         body.ui-chrome-hidden.pdf-is-open #btn-tts-float {
             display: -webkit-inline-flex !important;
@@ -510,13 +509,46 @@
         #tts-engine-hint {
             margin-top: -6px;
         }
-        #settings-panel #rate-range {
-            -webkit-box-flex: 1;
-            -webkit-flex: 1;
-            -ms-flex: 1;
-            flex: 1;
-            min-width: 120px;
+        .rate-btn-group {
+            display: -webkit-box;
+            display: -webkit-flex;
+            display: -ms-flexbox;
+            display: flex;
+            gap: 7px;
+            -webkit-flex-wrap: wrap;
+            -ms-flex-wrap: wrap;
+            flex-wrap: wrap;
+            margin-top: 2px;
         }
+        .rate-btn {
+            padding: 7px 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(128,128,128,0.3);
+            background: var(--panel);
+            color: var(--text);
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            -webkit-transition: background 0.15s, color 0.15s, border-color 0.15s;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+            min-width: 52px;
+            text-align: center;
+        }
+        .rate-btn.rate-active {
+            background: var(--accent);
+            color: #fff;
+            border-color: transparent;
+        }
+        @media (pointer: coarse) {
+            .rate-btn { min-height: 44px; padding: 10px 18px; }
+        }
+        #settings-panel #rate-label {
+            display: none;
+        }
+        #settings-panel #rate-range {
+            display: none;
+        }
+        /* mantido para compatibilidade — antigo rate-label */
         #settings-panel #rate-label {
             font-size: 0.88rem;
             font-weight: 600;
@@ -550,6 +582,26 @@
         }
         .controls-inner-compact { gap: 6px; }
         .controls-row-main { margin: 0; }
+        .settings-save-wrap {
+            padding: 10px 14px 4px;
+        }
+        #btn-save-settings {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            background: var(--accent);
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            letter-spacing: 0.01em;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+            -webkit-transition: opacity 0.15s;
+            transition: opacity 0.15s;
+        }
+        #btn-save-settings:active { opacity: 0.82; }
         #btn-reset-storage {
             display: block;
             width: calc(100% - 28px);
@@ -693,7 +745,8 @@
             gap: 10px;
             pointer-events: none;
         }
-        body.ui-chrome-hidden.pdf-is-open .reader-float-left {
+        /* ☰ flutua no canto inferior esquerdo sempre que há PDF aberto */
+        body.pdf-is-open .reader-float-left {
             display: -webkit-box !important;
             display: -webkit-flex !important;
             display: -ms-flexbox !important;
@@ -705,8 +758,10 @@
             display: inline-block;
             pointer-events: auto;
         }
-        /* Barra ⏪ ⏩ ↔ — só na tela de leitura (chrome oculto), nunca sobre Ouvir/Voz */
-        body:not(.ui-chrome-hidden) #reader-float-bar { display: none !important; }
+        #btn-toggle-layout { display: none; }
+        body.ui-chrome-hidden.pdf-is-open #btn-toggle-layout { display: inline-block !important; }
+        /* reader-float-bar obsoleto — ⏪ ⏩ movidos para barra inferior */
+        #reader-float-bar { display: none !important; }
         #reader-float-bar {
             display: none;
             position: fixed;
@@ -761,25 +816,23 @@
             -ms-flex-negative: 0;
             flex-shrink: 0;
         }
-        #btn-tts-skip-back, #btn-tts-skip-fwd, #btn-toggle-layout { display: none; }
-        body.ui-chrome-hidden.pdf-is-open #btn-tts-skip-back,
-        body.ui-chrome-hidden.pdf-is-open #btn-tts-skip-fwd { display: inline-block; }
-        /* Barra flutuante na tela de leitura — todas as larguras de ecrã */
-        body.ui-chrome-hidden.pdf-is-open #reader-float-bar {
-            display: block !important;
+        /* ⏪ ⏩ agora na barra inferior — sempre visíveis */
+        /* Barra inferior compacta com 7 botões */
+        .controls-bottom .btn-nav-arrow {
+            min-width: 36px; width: 36px; height: 36px;
+            line-height: 36px; font-size: 1rem; padding: 0;
         }
-        body.ui-chrome-hidden.pdf-is-open .reader-float-bar-track {
-            display: -webkit-box !important;
-            display: -webkit-flex !important;
-            display: -ms-flexbox !important;
-            display: flex !important;
+        .controls-bottom .btn-tts-ui {
+            min-width: 36px; width: 36px; height: 36px;
         }
+        .controls-row-main { gap: 5px; flex-wrap: nowrap; }
+        #page-info { min-width: 44px; text-align: center; font-size: 0.82rem; }
         @media (max-width: 640px) {
             header { flex-direction: column; align-items: stretch; }
             header > span:first-of-type { text-align: center; }
             .header-actions { justify-content: center; }
             #viewer-container { padding: 12px 10px; padding-bottom: 12px; }
-            body.pdf-is-open:not(.ui-chrome-hidden) #viewer-container { padding-bottom: calc(82px + env(safe-area-inset-bottom, 0px)); }
+            body.pdf-is-open:not(.ui-chrome-hidden) #viewer-container { padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
             body.pdf-is-open.ui-chrome-hidden #viewer-container { padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)); }
             .controls-row.tts-options { flex-direction: column; align-items: stretch; gap: 10px; }
             .controls-row.tts-options label { justify-content: space-between; width: 100%; }
@@ -798,7 +851,7 @@
 
         /* ── Modo leitura larga (mobile): PDF mais largo, SEM girar a UI ── */
         @media screen and (max-width: 768px) {
-            body.ui-chrome-hidden.pdf-is-open #btn-toggle-layout { display: inline-block !important; }
+            /* btn-toggle-layout aparece no float quando barras ocultas */
 
             /* Tela cheia de leitura — conteúdo permanece na horizontal */
             #app-container.forced-landscape {
@@ -918,12 +971,10 @@
             <div class="settings-screen-inner" id="settings-panel" role="region" aria-label="Opções de leitura">
                 <section class="settings-group">
                     <h2 class="settings-group-title">Leitura</h2>
-                    <label class="settings-row"><input type="checkbox" id="opt-hide-chrome"><span class="settings-row-text">Ocultar barras (quase tela cheia)</span></label>
-                    <p class="panel-hint">Esconde o cabeçalho e a barra inferior. Use ☰ na leitura para voltar; ⚙️ para voz e opções.</p>
+                    <label class="settings-row"><input type="checkbox" id="opt-hide-chrome"><span class="settings-row-text">Ocultar cabeçalho ao abrir PDF</span></label>
+                    <p class="panel-hint">Esconde só o cabeçalho superior. Use ☰ na barra inferior para mostrar/ocultar a qualquer momento.</p>
                     <label class="settings-row"><input type="checkbox" id="opt-reading-mode"><span class="settings-row-text">Modo leitura</span></label>
-                    <p class="panel-hint">Fundo calmo e página com aparência de leitor focado no texto.</p>
-                    <p class="panel-hint">Durante a voz alta, o trecho atual fica destacado no próprio PDF (sem caixa de texto extra).</p>
-                    <p class="panel-hint">Com o tema escuro (🌙 no topo), o PDF também fica escurecido para leitura noturna.</p>
+                    <p class="panel-hint">Fundo calmo e página com aparência de leitor focado no texto. Com o tema escuro (🌙 no topo), o PDF também fica escurecido para leitura noturna.</p>
                 </section>
                 <section class="settings-group">
                     <h2 class="settings-group-title">Navegação</h2>
@@ -952,13 +1003,20 @@
                     </div>
                     <div class="settings-field">
                         <span class="settings-field-label">Velocidade</span>
-                        <div class="settings-field-control">
-                            <input type="range" id="rate-range" min="0.5" max="1.75" step="0.05" value="1" title="Velocidade da leitura">
-                            <span id="rate-label">1×</span>
+                        <div class="rate-btn-group" id="rate-btn-group" role="group" aria-label="Velocidade da leitura">
+                            <button type="button" class="rate-btn" data-rate="0.5" aria-pressed="false">0.5×</button>
+                            <button type="button" class="rate-btn" data-rate="0.8" aria-pressed="false">0.8×</button>
+                            <button type="button" class="rate-btn" data-rate="1.0" aria-pressed="false">1.0×</button>
+                            <button type="button" class="rate-btn" data-rate="1.5" aria-pressed="false">1.5×</button>
+                            <button type="button" class="rate-btn" data-rate="2.0" aria-pressed="false">2.0×</button>
                         </div>
+                        <input type="hidden" id="rate-range" value="1">
+                        <span id="rate-label" style="display:none">1×</span>
                     </div>
                     <label class="settings-row"><input type="checkbox" id="continuous-read" checked><span class="settings-row-text">Ler em sequência (próximas páginas)</span></label>
                     <p class="panel-hint">Só avança quando o áudio da página terminar de verdade (não ao pausar).</p>
+                    <label class="settings-row"><input type="checkbox" id="opt-tts-highlight"><span class="settings-row-text">Destacar trecho lido (tarja amarela)</span></label>
+                    <p class="panel-hint">Marca aproximada no PDF do trecho em leitura. Desativada por padrão pois a marcação nem sempre acompanha a voz com precisão.</p>
                 </section>
                 <p class="sr-hint settings-panel sr-hint-block">Atalhos: ← → mudam página · Espaço ouvir/parar na barra inferior</p>
                 <section class="settings-group" id="settings-group-cloud">
@@ -968,6 +1026,9 @@
                     <label class="settings-row" id="opt-resume-cloud-wrap"><input type="checkbox" id="opt-resume-cloud" checked><span class="settings-row-text">Ao iniciar, abrir o último PDF da nuvem</span></label>
                     <p class="panel-hint">Usa o último documento guardado na base.</p>
                 </section>
+                <div class="settings-save-wrap">
+                    <button type="button" id="btn-save-settings">✔ Salvar e aplicar</button>
+                </div>
                 <section class="settings-group settings-danger-wrap">
                     <h2 class="settings-group-title">Avançado</h2>
                     <button type="button" id="btn-reset-storage">🗑 Limpar dados locais</button>
@@ -995,33 +1056,27 @@
 
 <div id="tts-toast" role="status" aria-live="polite"></div>
 <div class="reader-float-left" aria-label="Controles rápidos de leitura">
-    <button type="button" id="btn-show-chrome" class="reader-chrome-fab" title="Mostrar barras de ferramentas" aria-label="Mostrar controles">☰</button>
+    <button type="button" id="btn-show-chrome" class="reader-chrome-fab" title="Mostrar/ocultar barras" aria-label="Alternar barras">☰</button>
     <button type="button" id="btn-tts-float" class="btn-tts-ui tts-state-idle" onclick="toggleTTS()" title="Ouvir em voz alta" aria-label="Ouvir em voz alta"><span class="tts-speaker" aria-hidden="true">🔊</span><span class="tts-badge-x" aria-hidden="true">✕</span></button>
+    <button type="button" id="btn-toggle-layout" class="reader-chrome-fab" title="Modo leitura larga" aria-label="Modo leitura larga">↔</button>
 </div>
 <div id="reader-scroll-nav" class="scroll-nav-stack scroll-nav-stack--reader" aria-label="Rolar página do PDF">
     <button type="button" class="scroll-nav-btn" id="btn-reader-scroll-up" title="Rolar página para cima" aria-label="Rolar página para cima">▲</button>
     <button type="button" class="scroll-nav-btn" id="btn-reader-scroll-down" title="Rolar página para baixo" aria-label="Rolar página para baixo">▼</button>
 </div>
-<div id="reader-float-bar" aria-label="Controles de leitura sobre o PDF">
-    <div class="reader-float-bar-track">
-        <div class="reader-float-bar-mid">
-            <button type="button" id="btn-tts-skip-back" class="reader-float-btn" title="Retroceder 15 segundos" aria-label="Retroceder 15 segundos">⏪</button>
-            <button type="button" id="btn-tts-skip-fwd" class="reader-float-btn" title="Avançar 15 segundos" aria-label="Avançar 15 segundos">⏩</button>
-        </div>
-        <button type="button" id="btn-toggle-layout" class="reader-float-btn" title="Modo leitura larga (página em tela cheia)" aria-label="Modo leitura larga">↔</button>
-    </div>
-</div>
+<div id="reader-float-bar" aria-label="Controles de leitura sobre o PDF"></div>
 
 <div id="nav-controls" class="controls-bottom hidden">
     <div class="controls-inner controls-inner-compact">
         <div class="controls-row controls-row-main">
-            <button type="button" class="btn btn-nav-arrow" onclick="changePage(-1)" title="Página anterior" aria-label="Página anterior">◀</button>
             <button type="button" id="btn-tts" class="btn-tts-ui tts-state-idle" onclick="toggleTTS()" title="Ouvir em voz alta" aria-label="Ouvir em voz alta"><span class="tts-speaker" aria-hidden="true">🔊</span><span class="tts-badge-x" aria-hidden="true">✕</span></button>
+            <button type="button" id="btn-tts-skip-back" class="btn btn-nav-arrow" title="Retroceder 15 segundos" aria-label="Retroceder 15 segundos">⏪</button>
+            <button type="button" class="btn btn-nav-arrow" onclick="changePage(-1)" title="Página anterior" aria-label="Página anterior">◀</button>
             <span id="page-info">0 / 0</span>
             <button type="button" class="btn btn-nav-arrow" onclick="changePage(1)" title="Próxima página" aria-label="Próxima página">▶</button>
+            <button type="button" id="btn-tts-skip-fwd" class="btn btn-nav-arrow" title="Avançar 15 segundos" aria-label="Avançar 15 segundos">⏩</button>
             <button type="button" class="btn btn-nav-arrow" id="btn-settings" title="Configurações" aria-expanded="false" aria-controls="settings-screen" aria-label="Configurações">⚙️</button>
         </div>
-        <p class="sr-hint">← → páginas · Espaço ouvir/parar · ⚙️ configurações</p>
     </div>
 </div>
 
@@ -1282,6 +1337,7 @@ var safeStorage = (function() {
     var ttsAbsCharEnd = 0;
     var ttsScrollHighlightRaf = null;
     var ttsProxyResumeFrac = 0;
+    var ttsProxyCharOffset = 0;   /* chars do texto completo antes do início do áudio atual */
     var TTS_SKIP_SECONDS = 15;
     var TTS_HIGHLIGHT_MS = 110;
     var ttsPdfHighlightLast = { start: -1, end: -1 };
@@ -1685,14 +1741,40 @@ var safeStorage = (function() {
         schedulePushUserPreferences();
     });
 
-    rateRange.addEventListener('input', function() {
-        rateLabel.textContent = Number(rateRange.value).toFixed(2).replace(/\.?0+$/, '') + '×';
-        schedulePushUserPreferences();
+    /* Botões de velocidade — substituem o slider */
+    var _rateBtns = document.querySelectorAll('#rate-btn-group .rate-btn');
+    var _RATE_KEY = 'readera-speed';
+    var _VALID_RATES = ['0.5', '0.8', '1.0', '1.5', '2.0'];
+
+    function _applyRateBtn(val) {
+        var target = String(parseFloat(val || 1).toFixed(1));
+        /* corrigir "1" → "1.0" etc para o match */
+        _rateBtns.forEach(function(b) {
+            var bVal = String(parseFloat(b.dataset.rate).toFixed(1));
+            var active = bVal === target;
+            b.classList.toggle('rate-active', active);
+            b.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+    }
+
+    _rateBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var rate = btn.dataset.rate;
+            rateRange.value = rate;
+            safeStorage.setItem(_RATE_KEY, rate);
+            invalidateTtsAudioCache();
+            _applyRateBtn(rate);
+        });
     });
-    rateRange.addEventListener('change', function() {
-        invalidateTtsAudioCache();
-    });
-    rateLabel.textContent = rateRange.value + '×';
+
+    /* Carregar velocidade salva */
+    var _savedRate = safeStorage.getItem(_RATE_KEY);
+    if (_savedRate && _VALID_RATES.indexOf(_savedRate) !== -1) {
+        rateRange.value = _savedRate;
+    } else {
+        rateRange.value = '1.0';
+    }
+    _applyRateBtn(rateRange.value);
 
     function _ttsRate() {
         var r = rateRange ? Number(rateRange.value) : 1;
@@ -1715,11 +1797,15 @@ var safeStorage = (function() {
     function startProxyTtsPlayback(text, ranges, targetPage) {
         var num = (targetPage != null && targetPage > 0) ? (targetPage | 0) : pageNum;
         var voice = voiceSelect ? voiceSelect.value : 'pt-BR-FranciscaNeural';
+        /* Usar texto fatiado quando há posição de retomada — evita seek em stream sem Range support */
+        var charOffset = (ttsResumePageNum === num && ttsResumeCharOffset > 0 && ttsResumeCharOffset < text.length)
+            ? ttsResumeCharOffset : 0;
+        var sendText = charOffset > 0 ? text.slice(charOffset) : text;
         isReading = true;
         ttsStopRequested = false;
         setTtsButtonsState('playing');
-        _fetchTtsAudioUrl(text, voice, _ttsRate(), function(url) {
-            _playTtsUrl(url, text, ranges || [], num);
+        _fetchTtsAudioUrl(sendText, voice, _ttsRate(), function(url) {
+            _playTtsUrl(url, text, ranges || [], num, charOffset);
         }, function(err) {
             console.error('[TTS proxy]', err);
             isReading = false;
@@ -2206,6 +2292,7 @@ var safeStorage = (function() {
         opts = opts || {};
         var skipSeek = !!opts.skipSeek;
         var autoPlay = opts.autoPlay !== false;
+        var charOffset = typeof opts.charOffset === 'number' ? opts.charOffset : 0;
 
         stopTtsProxyWatchdog();
         ttsAudioEl.ontimeupdate = null;
@@ -2216,12 +2303,19 @@ var safeStorage = (function() {
         ttsAudioEl.onwaiting = null;
         ttsAudioEl.onstalled = null;
 
-        var resumeFrac = (ttsResumePageNum === capturedPage && ttsResumeCharOffset > 0 && capturedText.length > 0)
-            ? ttsResumeCharOffset / capturedText.length : 0;
-        if (skipSeek && ttsAudioEl.duration > 0) {
+        var resumeFrac;
+        if (charOffset > 0 && capturedText.length > 0) {
+            /* Áudio fatiado: fração base = charOffset / fullLen */
+            resumeFrac = charOffset / capturedText.length;
+        } else if (skipSeek && ttsAudioEl.duration > 0) {
+            /* Retomada de pausa em áudio completo: usar posição atual do áudio */
             resumeFrac = Math.max(0, Math.min(1, ttsAudioEl.currentTime / ttsAudioEl.duration));
+        } else {
+            resumeFrac = (ttsResumePageNum === capturedPage && ttsResumeCharOffset > 0 && capturedText.length > 0)
+                ? ttsResumeCharOffset / capturedText.length : 0;
         }
         ttsProxyResumeFrac = resumeFrac;
+        ttsProxyCharOffset = charOffset;
 
         fullPageText = capturedText;
         ttsLastFullTextLen = capturedText.length;
@@ -2272,7 +2366,10 @@ var safeStorage = (function() {
                 if (isFinite(t) && t > 0.05) ttsAudioEl.currentTime = t;
             } catch (e) {}
         }
-        if (!skipSeek) {
+        /* Para áudio fatiado (charOffset > 0): o áudio JÁ começa no ponto certo — não fazer seek.
+           Para áudio completo com skipSeek: apenas retomar (play), sem seek.
+           Para áudio completo sem skipSeek: seek para a posição de retomada. */
+        if (!skipSeek && charOffset <= 0) {
             if (ttsAudioEl.readyState >= 1) seekProxyToResumeFrac();
             else {
                 var seekMetaDone = false;
@@ -2357,13 +2454,18 @@ var safeStorage = (function() {
         if (!text.trim()) return false;
         if (ttsAudioEl.duration > 0 && ttsAudioEl.currentTime >= ttsAudioEl.duration - 0.2) return false;
 
+        /* Se o áudio atual é fatiado (após um skip), não tentar retomar — deixar speakCurrentPage
+           gerar novo áudio fatiado a partir de ttsResumeCharOffset (posição correta). */
+        if (ttsProxyCharOffset > 0) return false;
+
+        /* Áudio completo (pausa simples): retomar do ponto onde pausou sem nova requisição. */
         document.body.classList.remove('tts-paused');
-        _bindProxyTtsPlayback(ttsAudioEl.src, text, ranges, pageNum, { skipSeek: true });
+        _bindProxyTtsPlayback(ttsAudioEl.src, text, ranges, pageNum, { skipSeek: true, charOffset: 0 });
         return true;
     }
 
     /* Reproduz a URL de streaming e gerencia todo o ciclo de vida do áudio */
-    function _playTtsUrl(url, capturedText, capturedRanges, capturedPage) {
+    function _playTtsUrl(url, capturedText, capturedRanges, capturedPage, charOffset) {
         if (!url) { showTtsToast('URL de áudio não disponível.'); return; }
 
         if (!ttsAudioEl) {
@@ -2383,7 +2485,7 @@ var safeStorage = (function() {
         isReading = true;
         ttsStopRequested = false;
         setTtsButtonsState('playing');
-        _bindProxyTtsPlayback(url, capturedText, capturedRanges, capturedPage, {});
+        _bindProxyTtsPlayback(url, capturedText, capturedRanges, capturedPage, { charOffset: charOffset || 0 });
     }
 
     function buildTtsTextAndRanges(items) {
@@ -2485,6 +2587,11 @@ var safeStorage = (function() {
     }
 
     function updateHighlight(charIndex, charLength) {
+        var hlEl = document.getElementById('opt-tts-highlight');
+        if (hlEl && !hlEl.checked) {
+            clearPdfHighlight();
+            return;
+        }
         updatePdfReadHighlight(charIndex, charLength);
         if (isReading) scrollTtsHighlightIntoView();
     }
@@ -2495,20 +2602,24 @@ var safeStorage = (function() {
     }
 
     function applyUiPrefs() {
-        const hide = safeStorage.getItem('readera-hide-chrome') === '1';
-        const read = safeStorage.getItem('readera-reading-mode') === '1';
-        const autoCloud = safeStorage.getItem(LS_AUTO_CLOUD) !== '0';
+        const hide       = safeStorage.getItem('readera-hide-chrome') === '1';
+        const read       = safeStorage.getItem('readera-reading-mode') === '1';
+        const autoCloud  = safeStorage.getItem(LS_AUTO_CLOUD) !== '0';
         const resumeCloud = safeStorage.getItem(LS_RESUME_CLOUD) !== '0';
         syncChromeHiddenState();
         document.body.classList.toggle('reading-mode', read);
-        const h = document.getElementById('opt-hide-chrome');
-        const r = document.getElementById('opt-reading-mode');
+        const h  = document.getElementById('opt-hide-chrome');
+        const r  = document.getElementById('opt-reading-mode');
         const ac = document.getElementById('opt-auto-cloud');
         const rc = document.getElementById('opt-resume-cloud');
-        if (h) h.checked = hide;
-        if (r) r.checked = read;
+        if (h)  h.checked  = hide;
+        if (r)  r.checked  = read;
         if (ac) ac.checked = autoCloud;
         if (rc) rc.checked = resumeCloud;
+        /* Ler em sequência */
+        const cont = safeStorage.getItem('readera-continuous');
+        const contEl = document.getElementById('continuous-read');
+        if (contEl && cont !== null) contEl.checked = cont === '1';
     }
 
     function wireSettingsUi() {
@@ -2562,19 +2673,62 @@ var safeStorage = (function() {
             });
         }
         showChrome.addEventListener('click', function() {
-            hideCb.checked = false;
-            safeStorage.setItem('readera-hide-chrome', '0');
-            document.body.classList.remove('ui-chrome-hidden');
+            var isNowHidden = document.body.classList.toggle('ui-chrome-hidden');
+            hideCb.checked = isNowHidden;
+            safeStorage.setItem('readera-hide-chrome', isNowHidden ? '1' : '0');
         });
 
         const resetBtn = document.getElementById('btn-reset-storage');
         if (resetBtn) {
             resetBtn.addEventListener('click', function() {
                 if (!confirm('Apagar todas as preferências guardadas neste browser (tema, opções, ID do último documento)?\n\nA página será recarregada.')) return;
-                ['readera-theme','readera-hide-chrome','readera-reading-mode',
-                 LS_AUTO_CLOUD,LS_RESUME_CLOUD,LS_LAST_CLOUD_DOC,'readera-voice-key',LS_TTS_ENGINE]
+                ['readera-theme','readera-hide-chrome','readera-reading-mode','readera-tts-highlight',
+                 LS_AUTO_CLOUD,LS_RESUME_CLOUD,LS_LAST_CLOUD_DOC,'readera-voice-key',LS_TTS_ENGINE,
+                 'readera-speed','readera-continuous']
                     .forEach(function(k) { safeStorage.removeItem(k); });
                 location.reload();
+            });
+        }
+
+        /* ── opt-tts-highlight (tarja amarela, desligada por padrão) ── */
+        var hlCb = document.getElementById('opt-tts-highlight');
+        if (hlCb) {
+            hlCb.checked = safeStorage.getItem('readera-tts-highlight') === '1';
+            hlCb.addEventListener('change', function() {
+                safeStorage.setItem('readera-tts-highlight', hlCb.checked ? '1' : '0');
+                if (!hlCb.checked) clearPdfHighlight();
+            });
+        }
+
+        /* ── Botão Salvar e aplicar ── */
+        var saveSettingsBtn = document.getElementById('btn-save-settings');
+        if (saveSettingsBtn) {
+            saveSettingsBtn.addEventListener('click', function() {
+                /* Gravar todos os campos de configuração no localStorage */
+                var voiceSel   = document.getElementById('voice-select');
+                var engineSel  = document.getElementById('tts-engine-select');
+                var rateInp    = document.getElementById('rate-range');
+                var contRead   = document.getElementById('continuous-read');
+                var hlCb2      = document.getElementById('opt-tts-highlight');
+                var hideCb2    = document.getElementById('opt-hide-chrome');
+                var readCb2    = document.getElementById('opt-reading-mode');
+                var autoClCb   = document.getElementById('opt-auto-cloud');
+                var resumeClCb = document.getElementById('opt-resume-cloud');
+
+                if (voiceSel)   safeStorage.setItem('readera-voice-key', voiceSel.value);
+                if (engineSel)  safeStorage.setItem(LS_TTS_ENGINE, engineSel.value);
+                if (rateInp)    safeStorage.setItem('readera-speed', rateInp.value);
+                if (contRead)   safeStorage.setItem('readera-continuous', contRead.checked ? '1' : '0');
+                if (hlCb2)      safeStorage.setItem('readera-tts-highlight', hlCb2.checked ? '1' : '0');
+                if (hideCb2)    safeStorage.setItem('readera-hide-chrome', hideCb2.checked ? '1' : '0');
+                if (readCb2)    safeStorage.setItem('readera-reading-mode', readCb2.checked ? '1' : '0');
+                if (autoClCb)   safeStorage.setItem(LS_AUTO_CLOUD, autoClCb.checked ? '1' : '0');
+                if (resumeClCb) safeStorage.setItem(LS_RESUME_CLOUD, resumeClCb.checked ? '1' : '0');
+
+                /* Feedback visual antes de recarregar */
+                saveSettingsBtn.textContent = '✔ Salvando…';
+                saveSettingsBtn.disabled = true;
+                setTimeout(function() { location.reload(); }, 300);
             });
         }
 
@@ -2668,6 +2822,7 @@ var safeStorage = (function() {
         ttsLastFullTextLen = 0;
         ttsAbsCharEnd = 0;
         ttsProxyResumeFrac = 0;
+        ttsProxyCharOffset = 0;
         ttsProxyEndHandled = false;
         ttsProxyRecoverAttempts = 0;
         if (ttsProxyEndFallbackTimer != null) {
@@ -2742,7 +2897,7 @@ var safeStorage = (function() {
         if (!pdfDoc) return;
         var text = (ttsPageCache.pageNum === pageNum && ttsPageCache.text) ? ttsPageCache.text : '';
         if (!text.trim()) {
-            showTtsToast('Abra a leitura em voz alta (Ouvir) nesta página primeiro.');
+            showTtsToast('Inicie a leitura em voz alta antes de usar ⏪ ⏩.');
             return;
         }
         var len = text.length;
@@ -2750,40 +2905,37 @@ var safeStorage = (function() {
         var rate = rateRange ? Number(rateRange.value) : 1;
         if (!isFinite(rate) || rate <= 0) rate = 1;
 
-        if (isReading && ttsEngine === 'proxy' && ttsAudioEl && ttsAudioEl.duration > 0) {
-            var dur = ttsAudioEl.duration;
-            var newTime = ttsAudioEl.currentTime + deltaSec;
-            if (newTime < 0) newTime = 0;
-            if (newTime > dur) newTime = dur;
-            try { ttsAudioEl.currentTime = newTime; } catch (e) {}
-            var charIdx = Math.floor((ttsProxyResumeFrac + (newTime / dur) * (1 - ttsProxyResumeFrac)) * len);
-            ttsAbsCharEnd = charIdx;
-            ttsResumeCharOffset = charIdx;
-            ttsResumePageNum = pageNum;
-            updateHighlight(charIdx, 8);
-            scrollTtsHighlightIntoView();
-            return;
+        /* ── Calcular nova posição em chars ── */
+        /* Para proxy: estimar densidade real com base na duração do áudio fatiado atual */
+        var approxChars;
+        if (ttsEngine === 'proxy' && ttsAudioEl && ttsAudioEl.duration > 0 && isFinite(ttsAudioEl.duration)) {
+            var slicedLen = len - ttsProxyCharOffset;
+            if (slicedLen < 1) slicedLen = 1;
+            var charsPerSec = slicedLen / ttsAudioEl.duration;
+            approxChars = Math.round(Math.abs(deltaSec) * charsPerSec);
+        } else {
+            approxChars = Math.round(TTS_SKIP_SECONDS * 14 * rate);
         }
-
-        var approxChars = Math.round(TTS_SKIP_SECONDS * 14 * rate);
         if (deltaSec < 0) approxChars = -approxChars;
-        var newPos = pos + approxChars;
-        if (newPos < 0) newPos = 0;
-        if (newPos > len) newPos = len;
+        var newPos = Math.max(0, Math.min(len - 1, pos + approxChars));
+
         if (!applyTtsSeekCharIndex(newPos)) return;
+        ttsProxyResumeFrac = len > 0 ? newPos / len : 0;
+        updateHighlight(newPos, 8);
+        updateTtsSeekButtonsVisible();
 
         if (isReading) {
-            if (ttsEngine === 'proxy' && ttsAudioEl && ttsAudioEl.duration > 0) {
-                var dur2 = ttsAudioEl.duration;
-                var t2 = proxyTimeFromCharIndex(newPos, len, dur2, ttsProxyResumeFrac);
-                try { ttsAudioEl.currentTime = t2; } catch (e) {}
-                if (ttsAudioEl.paused) {
-                    var pp = ttsAudioEl.play();
-                    if (pp && typeof pp.then === 'function') {
-                        pp.then(function() {}, function() {});
-                    }
-                }
-            } else {
+            if (ttsEngine === 'proxy') {
+                /* NÃO usar currentTime seek (Edge Function não suporta Range requests).
+                   Parar o áudio atual e reiniciar com texto fatiado a partir da nova posição. */
+                ttsStopRequested = true;       /* onpause vê ttsStopRequested=true → não aciona recover */
+                if (ttsAudioEl) ttsAudioEl.pause();
+                stopTtsProxyWatchdog();
+                ttsStopRequested = false;
+                isReading = false;
+                speakLock = false;
+                speakCurrentPage();            /* lerá ttsResumeCharOffset=newPos e fatiará o texto */
+            } else if (ttsEngine === 'webspeech') {
                 if (_wsSynth) { try { _wsSynth.cancel(); } catch (e) {} }
                 isReading = false;
                 currentUtterance = null;
@@ -2791,6 +2943,7 @@ var safeStorage = (function() {
                 speakCurrentPage();
             }
         }
+        /* Se pausado: ttsResumeCharOffset atualizado — ao retomar vai do novo ponto */
     }
 
     function setTtsButtonsState(state) {
