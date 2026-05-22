@@ -862,6 +862,25 @@
             .btn { min-height: 44px; padding: 10px 16px; }
         }
 
+        /* Modo leitura no mobile: PDF em largura total, sem margens laterais vazias */
+        @media (max-width: 768px) {
+            body.reading-mode.pdf-is-open #viewer-container {
+                padding: 0 !important;
+                padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+            }
+            body.reading-mode #pdf-render-area {
+                align-items: stretch;
+                width: 100%;
+            }
+            body.reading-mode #pdf-render-area .pdf-page-wrap {
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                border-radius: 0 !important;
+                box-shadow: none !important;
+            }
+        }
+
         /* ── Modo leitura larga (mobile): PDF mais largo, SEM girar a UI ── */
         @media screen and (max-width: 768px) {
             /* btn-toggle-layout aparece no float quando barras ocultas */
@@ -2690,6 +2709,7 @@ var safeStorage = (function() {
         readCb.addEventListener('change', function() {
             safeStorage.setItem('readera-reading-mode', readCb.checked ? '1' : '0');
             document.body.classList.toggle('reading-mode', readCb.checked);
+            if (pdfDoc && !isRendering) renderPage(pageNum, isReading);
         });
         if (autoCloudCb) {
             autoCloudCb.addEventListener('change', function() {
@@ -3650,6 +3670,13 @@ var safeStorage = (function() {
     };
 
     /* Largura útil do PDF: em paisagem virtual usa o lado longo do ecrã (não clientWidth pré-giro) */
+    function isReadingModeMobileViewport() {
+        if (!document.body.classList.contains('reading-mode')) return false;
+        var w = window.visualViewport ? window.visualViewport.width
+            : (typeof window.innerWidth === 'number' ? window.innerWidth : 0);
+        return w > 0 && w <= 768;
+    }
+
     function getPdfFitMaxWidth(viewer) {
         var appEl = document.getElementById('app-container');
         if (appEl && appEl.classList.contains('forced-landscape')) {
@@ -3661,6 +3688,12 @@ var safeStorage = (function() {
             }
             var longEdge = Math.max(iw, ih);
             return Math.max(280, longEdge - 8);
+        }
+        /* Modo leitura mobile: usar toda a largura da viewport (sem padding extra). */
+        if (isReadingModeMobileViewport()) {
+            var vv = window.visualViewport;
+            var fullW = vv ? vv.width : (typeof window.innerWidth === 'number' ? window.innerWidth : 0);
+            return Math.max(280, Math.floor(fullW));
         }
         var rect = viewer.getBoundingClientRect();
         var innerW = typeof window.innerWidth === 'number' ? window.innerWidth : rect.width;
