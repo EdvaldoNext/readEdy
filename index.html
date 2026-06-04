@@ -794,6 +794,28 @@
         }
         #btn-toggle-layout { display: none; }
         body.ui-chrome-hidden.pdf-is-open #btn-toggle-layout { display: inline-block !important; }
+        .reader-zoom-btn {
+            display: none !important;
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            line-height: 1;
+            -webkit-box-align: center;
+            -webkit-align-items: center;
+            -ms-flex-align: center;
+            align-items: center;
+            -webkit-box-pack: center;
+            -webkit-justify-content: center;
+            -ms-flex-pack: center;
+            justify-content: center;
+        }
+        @media (max-width: 768px) {
+            body.pdf-is-open.ui-chrome-hidden .reader-zoom-btn {
+                display: -webkit-inline-flex !important;
+                display: -ms-inline-flexbox !important;
+                display: inline-flex !important;
+            }
+        }
         /* reader-float-bar obsoleto — ⏪ ⏩ movidos para barra inferior */
         #reader-float-bar { display: none !important; }
         #reader-float-bar {
@@ -1151,6 +1173,8 @@
     <div class="reader-float-actions">
         <button type="button" id="btn-tts-float" class="btn-tts-ui tts-state-idle" onclick="toggleTTS()" title="Ouvir em voz alta" aria-label="Ouvir em voz alta"><span class="tts-speaker" aria-hidden="true">🔊</span><span class="tts-badge-x" aria-hidden="true">✕</span></button>
         <button type="button" id="btn-toggle-layout" class="reader-chrome-fab" title="Modo leitura larga" aria-label="Modo leitura larga">↔</button>
+        <button type="button" id="btn-zoom-out" class="reader-chrome-fab reader-zoom-btn" title="Diminuir texto" aria-label="Diminuir texto">A−</button>
+        <button type="button" id="btn-zoom-in"  class="reader-chrome-fab reader-zoom-btn" title="Aumentar texto" aria-label="Aumentar texto">A+</button>
     </div>
 </div>
 <div id="reader-scroll-nav" class="scroll-nav-stack scroll-nav-stack--reader" aria-label="Rolar página do PDF">
@@ -1420,6 +1444,14 @@ var safeStorage = (function() {
     var DEFAULT_TTS_ENGINE = 'proxy';
     var LS_RESUME_CLOUD = 'readera-resume-cloud';
     var LS_LAST_CLOUD_DOC = 'readera_last_cloud_doc_id';
+    var LS_PDF_ZOOM = 'readera-pdf-zoom';
+    var PDF_ZOOM_MIN = 1.0;
+    var PDF_ZOOM_MAX = 2.5;
+    var PDF_ZOOM_STEP = 0.2;
+    var pdfZoom = (function() {
+        var v = parseFloat(safeStorage.getItem(LS_PDF_ZOOM));
+        return (isNaN(v) || v < PDF_ZOOM_MIN || v > PDF_ZOOM_MAX) ? 1.0 : v;
+    }());
     var ttsCharRanges = [];
     var ttsPageCache = { pageNum: null, text: '', ranges: [] };
     var ttsWatchdogTimer = null;
@@ -3796,7 +3828,7 @@ var safeStorage = (function() {
             var longEdge = Math.max(iw, ih);
             return Math.max(280, longEdge - 8);
         }
-        /* Mobile imersivo: largura total da viewport (modo leitura ou barras ocultas). */
+        /* Mobile imersivo: largura total da viewport (zoom aplicado via CSS transform). */
         if (isMobileFullBleedPdf()) {
             var vv = window.visualViewport;
             var fullW = vv ? vv.width : (typeof window.innerWidth === 'number' ? window.innerWidth : 0);
@@ -3853,6 +3885,14 @@ var safeStorage = (function() {
             var renderArea = document.getElementById('pdf-render-area');
             renderArea.innerHTML = '';
             ttsPdfHighlightLast = { start: -1, end: -1 };
+            /* Zoom visual centrado: só no mobile imersivo */
+            if (isMobileFullBleedPdf() && pdfZoom !== 1.0) {
+                renderArea.style.transform = 'scale(' + pdfZoom + ')';
+                renderArea.style.transformOrigin = 'top center';
+            } else {
+                renderArea.style.transform = '';
+                renderArea.style.transformOrigin = '';
+            }
 
             var wrap = document.createElement('div');
             wrap.className = 'pdf-page-wrap';
@@ -4466,6 +4506,32 @@ var safeStorage = (function() {
     if (btnToggleLayout) {
         btnToggleLayout.addEventListener('click', toggleVirtualLandscape);
     }
+
+    function applyPdfZoom(delta) {
+        var next = Math.round((pdfZoom + delta) * 10) / 10;
+        next = Math.max(PDF_ZOOM_MIN, Math.min(PDF_ZOOM_MAX, next));
+        if (next === pdfZoom) return;
+        pdfZoom = next;
+        safeStorage.setItem(LS_PDF_ZOOM, String(pdfZoom));
+        var btnOut = document.getElementById('btn-zoom-out');
+        var btnIn  = document.getElementById('btn-zoom-in');
+        if (btnOut) btnOut.disabled = pdfZoom <= PDF_ZOOM_MIN;
+        if (btnIn)  btnIn.disabled  = pdfZoom >= PDF_ZOOM_MAX;
+        schedulePdfRelayout();
+    }
+
+    (function initZoomButtons() {
+        var btnOut = document.getElementById('btn-zoom-out');
+        var btnIn  = document.getElementById('btn-zoom-in');
+        if (btnOut) {
+            btnOut.disabled = pdfZoom <= PDF_ZOOM_MIN;
+            btnOut.addEventListener('click', function() { applyPdfZoom(-PDF_ZOOM_STEP); });
+        }
+        if (btnIn) {
+            btnIn.disabled = pdfZoom >= PDF_ZOOM_MAX;
+            btnIn.addEventListener('click', function() { applyPdfZoom(PDF_ZOOM_STEP); });
+        }
+    }());
 
     var btnTtsSkipBack = document.getElementById('btn-tts-skip-back');
     var btnTtsSkipFwd = document.getElementById('btn-tts-skip-fwd');
