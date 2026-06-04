@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ReadEra Web Pro</title>
+    <title>ReadEdy Web Pro</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
     <link rel="apple-touch-icon" href="./favicon.svg">
     <!-- PDF.js: local-first → CDN fallback -->
@@ -329,15 +329,17 @@
         #cloud-badge.cloud-status-error { background: rgba(192, 57, 43, 0.55); box-shadow: 0 0 0 2px #e74c3c; }
         #cloud-badge.cloud-status-wait,
         #cloud-badge.cloud-status-pending { background: rgba(255,255,255,0.1); opacity: 0.85; }
-        .cloud-library-wrap.hdr-library-select { max-width: 148px; min-width: 108px; }
+        .cloud-library-wrap.hdr-library-select { width: -webkit-fit-content; width: fit-content; max-width: none; min-width: 0; }
         .cloud-library-wrap.hdr-library-select .cloud-library-trigger {
-            max-width: 148px;
-            min-width: 108px;
+            width: auto;
+            max-width: none;
+            min-width: 0;
             border-radius: 999px;
-            padding: 8px 10px;
+            padding: 8px 11px;
             border: 1px solid rgba(255,255,255,0.35);
             background: rgba(255,255,255,0.16);
             font-size: 0.78rem;
+            text-align: center;
         }
         #settings-screen {
             display: none;
@@ -854,6 +856,22 @@
             .cloud-library-wrap { max-width: 100%; }
             .cloud-library-wrap .cloud-library-trigger { max-width: 100%; }
             .controls-row.page-jump .nowrap { white-space: normal; }
+            /* ☰ acima do 🔊 — sem sobrepor a barra inferior nem o float de voz */
+            body.pdf-is-open .reader-float-left {
+                -webkit-box-orient: vertical;
+                -webkit-box-direction: normal;
+                -webkit-flex-direction: column;
+                -ms-flex-direction: column;
+                flex-direction: column;
+                -webkit-box-align: start;
+                -webkit-align-items: flex-start;
+                -ms-flex-align: start;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            body.pdf-is-open:not(.ui-chrome-hidden) .reader-float-left {
+                bottom: calc(78px + env(safe-area-inset-bottom, 0px) + 10px);
+            }
         }
         @media (min-width: 1400px) {
             .controls-inner { max-width: 720px; }
@@ -977,17 +995,17 @@
 <div id="app-container">
 
 <header>
-    <span class="header-brand"><b>ReadEra</b> Web Pro</span>
+    <span class="header-brand"><b>ReadEy</b> Web Pro</span>
     <div class="header-actions">
         <button type="button" id="cloud-badge" class="hdr-icon-btn cloud-status-wait" title="Estado da nuvem" aria-label="Estado da nuvem" disabled>☁️</button>
         <div class="cloud-library-wrap hdr-library-select hidden" id="cloud-library-wrap" title="Abrir PDF salvo na nuvem">
-            <button type="button" id="cloud-library-trigger" class="cloud-library-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="cloud-library-panel">☁️ Meus PDFs…</button>
+            <button type="button" id="cloud-library-trigger" class="cloud-library-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="cloud-library-panel">PDFs</button>
             <div id="cloud-library-panel" class="cloud-library-panel hidden" role="listbox" aria-label="Meus PDFs na nuvem"></div>
         </div>
         <button type="button" class="hdr-icon-btn hidden" id="btn-cloud-save" title="Guardar PDF na nuvem" aria-label="Guardar na nuvem">☁️⬆</button>
-        <button type="button" class="hdr-icon-btn hdr-icon-danger hdr-icon-pill hidden" id="btn-cloud-delete" title="Apagar todos os PDFs da nuvem" aria-label="Apagar todos os PDFs da nuvem">🗑<span class="hdr-micro">PDF</span></button>
+        <button type="button" class="hdr-icon-btn hdr-icon-danger hidden" id="btn-cloud-delete" title="Apagar todos os PDFs da nuvem" aria-label="Apagar todos os PDFs da nuvem">🗑</button>
         <button type="button" class="hdr-icon-btn" id="btn-theme" title="Tema claro/escuro" aria-label="Alternar tema">🌙</button>
-        <button type="button" class="hdr-icon-btn hdr-icon-primary hdr-icon-pill" id="btn-open-pdf" title="Abrir PDF" aria-label="Abrir PDF" onclick="document.getElementById('file-input').click()">📂<span class="hdr-micro">PDF</span></button>
+        <button type="button" class="hdr-icon-btn hdr-icon-primary" id="btn-open-pdf" title="Abrir PDF" aria-label="Abrir PDF" onclick="document.getElementById('file-input').click()">📂</button>
     </div>
     <input type="file" id="file-input" accept="application/pdf" class="hidden">
 </header>
@@ -3134,7 +3152,7 @@ var safeStorage = (function() {
 
     function resetCloudLibraryTrigger() {
         var trigger = document.getElementById('cloud-library-trigger');
-        if (trigger) trigger.textContent = '☁️ Meus PDFs…';
+        if (trigger) trigger.textContent = 'PDFs';
     }
 
     function renderCloudLibraryList(rows) {
