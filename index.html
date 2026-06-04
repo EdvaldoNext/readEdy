@@ -768,10 +768,29 @@
             display: flex !important;
         }
         .reader-float-left .reader-chrome-fab,
-        .reader-float-left .btn-tts-ui {
+        .reader-float-left .btn-tts-ui,
+        .reader-float-actions .reader-chrome-fab,
+        .reader-float-actions .btn-tts-ui {
             position: static;
             display: inline-block;
             pointer-events: auto;
+        }
+        .reader-float-actions {
+            display: -webkit-box;
+            display: -webkit-flex;
+            display: -ms-flexbox;
+            display: flex;
+            -webkit-box-orient: horizontal;
+            -webkit-box-direction: normal;
+            -webkit-flex-direction: row;
+            -ms-flex-direction: row;
+            flex-direction: row;
+            -webkit-box-align: center;
+            -webkit-align-items: center;
+            -ms-flex-align: center;
+            align-items: center;
+            gap: 8px;
+            pointer-events: none;
         }
         #btn-toggle-layout { display: none; }
         body.ui-chrome-hidden.pdf-is-open #btn-toggle-layout { display: inline-block !important; }
@@ -856,8 +875,8 @@
             .cloud-library-wrap { max-width: 100%; }
             .cloud-library-wrap .cloud-library-trigger { max-width: 100%; }
             .controls-row.page-jump .nowrap { white-space: normal; }
-            /* ☰ acima do 🔊 — sem sobrepor a barra inferior nem o float de voz */
-            body.pdf-is-open .reader-float-left {
+            /* Com barra inferior: ☰ acima da área dos controlos */
+            body.pdf-is-open:not(.ui-chrome-hidden) .reader-float-left {
                 -webkit-box-orient: vertical;
                 -webkit-box-direction: normal;
                 -webkit-flex-direction: column;
@@ -868,9 +887,24 @@
                 -ms-flex-align: start;
                 align-items: flex-start;
                 gap: 8px;
-            }
-            body.pdf-is-open:not(.ui-chrome-hidden) .reader-float-left {
                 bottom: calc(78px + env(safe-area-inset-bottom, 0px) + 10px);
+            }
+            /* Modo leitura (barras ocultas): ☰ 🔊 ↔ numa linha */
+            body.pdf-is-open.ui-chrome-hidden .reader-float-left {
+                -webkit-box-orient: horizontal;
+                -webkit-box-direction: normal;
+                -webkit-flex-direction: row;
+                -ms-flex-direction: row;
+                flex-direction: row;
+                -webkit-box-align: center;
+                -webkit-align-items: center;
+                -ms-flex-align: center;
+                align-items: center;
+                gap: 8px;
+                bottom: max(12px, env(safe-area-inset-bottom, 0px));
+            }
+            body.pdf-is-open.ui-chrome-hidden .reader-float-actions {
+                display: contents;
             }
         }
         @media (min-width: 1400px) {
@@ -880,22 +914,29 @@
             .btn { min-height: 44px; padding: 10px 16px; }
         }
 
-        /* Modo leitura no mobile: PDF em largura total, sem margens laterais vazias */
+        /* Mobile: PDF em largura total (modo leitura OU barras ocultas) */
         @media (max-width: 768px) {
-            body.reading-mode.pdf-is-open #viewer-container {
+            body.reading-mode.pdf-is-open #viewer-container,
+            body.pdf-is-open.ui-chrome-hidden #viewer-container {
                 padding: 0 !important;
-                padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+                padding-bottom: max(56px, env(safe-area-inset-bottom, 0px)) !important;
             }
-            body.reading-mode #pdf-render-area {
+            body.reading-mode #pdf-render-area,
+            body.pdf-is-open.ui-chrome-hidden #pdf-render-area {
                 align-items: stretch;
                 width: 100%;
             }
-            body.reading-mode #pdf-render-area .pdf-page-wrap {
+            body.reading-mode #pdf-render-area .pdf-page-wrap,
+            body.pdf-is-open.ui-chrome-hidden #pdf-render-area .pdf-page-wrap {
                 width: 100% !important;
                 max-width: 100% !important;
                 margin: 0 !important;
                 border-radius: 0 !important;
                 box-shadow: none !important;
+            }
+            body.pdf-is-open.ui-chrome-hidden #pdf-render-area canvas {
+                box-shadow: none;
+                border-radius: 0;
             }
         }
 
@@ -1107,8 +1148,10 @@
 <div id="tts-toast" role="status" aria-live="polite"></div>
 <div class="reader-float-left" aria-label="Controles rápidos de leitura">
     <button type="button" id="btn-show-chrome" class="reader-chrome-fab" title="Mostrar/ocultar barras" aria-label="Alternar barras">☰</button>
-    <button type="button" id="btn-tts-float" class="btn-tts-ui tts-state-idle" onclick="toggleTTS()" title="Ouvir em voz alta" aria-label="Ouvir em voz alta"><span class="tts-speaker" aria-hidden="true">🔊</span><span class="tts-badge-x" aria-hidden="true">✕</span></button>
-    <button type="button" id="btn-toggle-layout" class="reader-chrome-fab" title="Modo leitura larga" aria-label="Modo leitura larga">↔</button>
+    <div class="reader-float-actions">
+        <button type="button" id="btn-tts-float" class="btn-tts-ui tts-state-idle" onclick="toggleTTS()" title="Ouvir em voz alta" aria-label="Ouvir em voz alta"><span class="tts-speaker" aria-hidden="true">🔊</span><span class="tts-badge-x" aria-hidden="true">✕</span></button>
+        <button type="button" id="btn-toggle-layout" class="reader-chrome-fab" title="Modo leitura larga" aria-label="Modo leitura larga">↔</button>
+    </div>
 </div>
 <div id="reader-scroll-nav" class="scroll-nav-stack scroll-nav-stack--reader" aria-label="Rolar página do PDF">
     <button type="button" class="scroll-nav-btn" id="btn-reader-scroll-up" title="Rolar página para cima" aria-label="Rolar página para cima">▲</button>
@@ -2723,6 +2766,7 @@ var safeStorage = (function() {
         hideCb.addEventListener('change', function() {
             safeStorage.setItem('readera-hide-chrome', hideCb.checked ? '1' : '0');
             syncChromeHiddenState();
+            schedulePdfRelayout();
         });
         readCb.addEventListener('change', function() {
             safeStorage.setItem('readera-reading-mode', readCb.checked ? '1' : '0');
@@ -2743,6 +2787,7 @@ var safeStorage = (function() {
             var isNowHidden = document.body.classList.toggle('ui-chrome-hidden');
             hideCb.checked = isNowHidden;
             safeStorage.setItem('readera-hide-chrome', isNowHidden ? '1' : '0');
+            schedulePdfRelayout();
         });
 
         const resetBtn = document.getElementById('btn-reset-storage');
@@ -3688,11 +3733,26 @@ var safeStorage = (function() {
     };
 
     /* Largura útil do PDF: em paisagem virtual usa o lado longo do ecrã (não clientWidth pré-giro) */
-    function isReadingModeMobileViewport() {
-        if (!document.body.classList.contains('reading-mode')) return false;
+    function isMobileViewport() {
         var w = window.visualViewport ? window.visualViewport.width
             : (typeof window.innerWidth === 'number' ? window.innerWidth : 0);
         return w > 0 && w <= 768;
+    }
+
+    function isMobileFullBleedPdf() {
+        if (!isMobileViewport() || !document.body.classList.contains('pdf-is-open')) return false;
+        return document.body.classList.contains('reading-mode')
+            || document.body.classList.contains('ui-chrome-hidden');
+    }
+
+    function schedulePdfRelayout() {
+        if (!pdfDoc || typeof renderPage !== 'function') return;
+        setTimeout(function() {
+            if (!isRendering) renderPage(pageNum, isReading);
+        }, 50);
+        setTimeout(function() {
+            if (!isRendering) renderPage(pageNum, isReading);
+        }, 280);
     }
 
     function getPdfFitMaxWidth(viewer) {
@@ -3707,8 +3767,8 @@ var safeStorage = (function() {
             var longEdge = Math.max(iw, ih);
             return Math.max(280, longEdge - 8);
         }
-        /* Modo leitura mobile: usar toda a largura da viewport (sem padding extra). */
-        if (isReadingModeMobileViewport()) {
+        /* Mobile imersivo: largura total da viewport (modo leitura ou barras ocultas). */
+        if (isMobileFullBleedPdf()) {
             var vv = window.visualViewport;
             var fullW = vv ? vv.width : (typeof window.innerWidth === 'number' ? window.innerWidth : 0);
             return Math.max(280, Math.floor(fullW));
