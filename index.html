@@ -2600,9 +2600,38 @@ var safeStorage = (function() {
     function buildTtsTextAndRanges(items) {
         let text = '';
         const ranges = [];
+
+        function shouldGlue(prev, curr) {
+            /* Itens vazios nunca geram espaço */
+            if (!prev.str || !curr.str) return true;
+            const ps = String(prev.str);
+            const cs = String(curr.str);
+            /* Se ambos são fragmentos curtos (≤2 chars) — provavelmente mesma palavra */
+            if (ps.length <= 2 && cs.length <= 2) return true;
+            /* Usar posição horizontal: transform[4] = x do item; transform[3] = altura da fonte */
+            const pt = prev.transform, ct = curr.transform;
+            if (pt && ct) {
+                const fontH = Math.abs(pt[3]) || 10;
+                const prevX  = pt[4];
+                const prevW  = (prev.width != null ? prev.width : 0) * (Math.hypot(pt[0], pt[1]) || 1);
+                const currX  = ct[4];
+                const gap    = currX - (prevX + prevW);
+                /* Gap menor que 30% da altura da fonte = sem espaço */
+                if (gap >= 0 && gap < fontH * 0.3) return true;
+            }
+            return false;
+        }
+
         for (let i = 0; i < items.length; i++) {
             const s = items[i].str != null ? String(items[i].str) : '';
-            if (i > 0) text += ' ';
+            if (!s.length) continue;
+            if (i > 0 && text.length > 0) {
+                /* Decidir se cola ou separa com espaço */
+                const prev = items[i - 1];
+                if (!shouldGlue(prev, items[i])) {
+                    text += ' ';
+                }
+            }
             const start = text.length;
             text += s;
             ranges.push({ start, end: text.length, itemIndex: i });
