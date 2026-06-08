@@ -1130,6 +1130,8 @@
                     <p class="panel-hint">Só avança quando o áudio da página terminar de verdade (não ao pausar).</p>
                     <label class="settings-row"><input type="checkbox" id="opt-tts-highlight"><span class="settings-row-text">Destacar trecho lido (tarja amarela)</span></label>
                     <p class="panel-hint">Marca aproximada no PDF do trecho em leitura. Desativada por padrão pois a marcação nem sempre acompanha a voz com precisão.</p>
+                    <label class="settings-row"><input type="checkbox" id="opt-ocr-scan"><span class="settings-row-text">OCR para PDFs escaneados</span></label>
+                    <p class="panel-hint">Reconhece texto de PDFs sem camada digital (scans/fotografias). Mais lento na 1ª leitura de cada página. Não afeta PDFs com texto normal.</p>
                 </section>
                 <p class="sr-hint settings-panel sr-hint-block">Atalhos: ← → mudam página · Espaço ouvir/parar na barra inferior</p>
                 <section class="settings-group" id="settings-group-cloud">
@@ -1454,6 +1456,11 @@ var safeStorage = (function() {
     }());
     var ttsCharRanges = [];
     var ttsPageCache = { pageNum: null, text: '', ranges: [] };
+    var ocrPageCache = {};          /* { pageNum: text } — cache OCR por página */
+    var _tesseractWorker = null;
+    var _tesseractLoading = false;
+    var _tesseractReady  = false;
+    var _tesseractCallbacks = [];
     var ttsWatchdogTimer = null;
     var pdfTextLayerSpans = null;
     var ttsResumeCharOffset = 0;
@@ -1563,6 +1570,7 @@ var safeStorage = (function() {
         pdfDoc = null;
         pdfTextLayerSpans = null;
         ttsPageCache = { pageNum: null, text: '', ranges: [] };
+        ocrPageCache = {};
     }
     var voiceSelect = document.getElementById('voice-select');
     var rateRange = document.getElementById('rate-range');
@@ -1910,16 +1918,94 @@ var safeStorage = (function() {
         return (isFinite(r) && r > 0) ? r : 1;
     }
 
+    /* ── OCR: carrega Tesseract.js sob demanda (lazy) ───────────── */
+    function ensureTesseract() {
+        return new Promise(function(resolve, reject) {
+            if (_tesseractReady && _tesseractWorker) { resolve(_tesseractWorker); return; }
+            if (_tesseractLoading) { _tesseractCallbacks.push({ resolve: resolve, reject: reject }); return; }
+            _tesseractLoading = true;
+            _tesseractCallbacks.push({ resolve: resolve, reject: reject });
+            var s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+            s.onload = function() {
+                if (typeof Tesseract === 'undefined') {
+                    var err = new Error('Tesseract.js indefinido após carga');
+                    _tesseractLoading = false;
+                    _tesseractCallbacks.splice(0).forEach(function(cb) { cb.reject(err); });
+                    return;
+                }
+                Tesseract.createWorker('por', 1, { logger: function() {} }).then(function(w) {
+                    _tesseractWorker = w;
+                    _tesseractReady  = true;
+                    _tesseractLoading = false;
+                    _tesseractCallbacks.splice(0).forEach(function(cb) { cb.resolve(w); });
+                }).catch(function(err) {
+                    _tesseractLoading = false;
+                    _tesseractCallbacks.splice(0).forEach(function(cb) { cb.reject(err); });
+                });
+            };
+            s.onerror = function() {
+                _tesseractLoading = false;
+                var err = new Error('Tesseract.js não carregou');
+                _tesseractCallbacks.splice(0).forEach(function(cb) { cb.reject(err); });
+            };
+            document.head.appendChild(s);
+        });
+    }
+
+    function runOcrOnPage(page, num) {
+        if (ocrPageCache[num]) {
+            return Promise.resolve({ text: ocrPageCache[num], ranges: [], fromOcr: true });
+        }
+        var scale = 2;
+        var viewport = page.getViewport({ scale: scale });
+        var canvas = document.createElement('canvas');
+        canvas.width  = viewport.width;
+        canvas.height = viewport.height;
+        var ctx = canvas.getContext('2d');
+        showTtsToast('PDF escaneado — reconhecendo texto…');
+        return page.render({ canvasContext: ctx, viewport: viewport }).promise
+            .then(function() { return ensureTesseract(); })
+            .then(function(worker) { return worker.recognize(canvas); })
+            .then(function(result) {
+                var text = (result.data && result.data.text) ? result.data.text.trim() : '';
+                ocrPageCache[num] = text;
+                return { text: text, ranges: [], fromOcr: true };
+            });
+    }
+
     function ensureTtsPageCache(targetPage) {
         var num = (targetPage != null && targetPage > 0) ? (targetPage | 0) : pageNum;
         if (ttsPageCache.pageNum === num && (ttsPageCache.text || '').trim()) {
             return Promise.resolve(ttsPageCache);
         }
         if (!pdfDoc) return Promise.reject(new Error('Sem PDF aberto'));
-        return pdfDoc.getPage(num).then(function(page) { return page.getTextContent(); }).then(function(textContent) {
-            var built = buildTtsTextAndRanges(textContent.items || []);
-            ttsPageCache = { pageNum: num, text: built.text, ranges: built.ranges };
-            return ttsPageCache;
+        return pdfDoc.getPage(num).then(function(page) {
+            return page.getTextContent().then(function(textContent) {
+                var built = buildTtsTextAndRanges(textContent.items || []);
+                if (built.text.trim()) {
+                    ttsPageCache = { pageNum: num, text: built.text, ranges: built.ranges };
+                    return ttsPageCache;
+                }
+                /* Sem texto digital — tentar OCR se ativado pelo utilizador */
+                var ocrCb = document.getElementById('opt-ocr-scan');
+                if (!ocrCb || !ocrCb.checked) {
+                    ttsPageCache = { pageNum: num, text: '', ranges: [] };
+                    return ttsPageCache;
+                }
+                return runOcrOnPage(page, num).then(function(ocr) {
+                    ttsPageCache = { pageNum: num, text: ocr.text, ranges: [] };
+                    if (ocr.text.trim()) {
+                        showTtsToast('Texto reconhecido via OCR — pode ter imprecisões.');
+                    }
+                    return ttsPageCache;
+                }).catch(function(err) {
+                    console.error('[OCR]', err);
+                    showTtsToast('OCR falhou nesta página.');
+                    ttsPageCache = { pageNum: num, text: '', ranges: [] };
+                    return ttsPageCache;
+                });
+            });
         });
     }
 
@@ -2873,6 +2959,18 @@ var safeStorage = (function() {
             });
         }
 
+        /* ── opt-ocr-scan (OCR para PDFs escaneados, desligado por padrão) ── */
+        var ocrCb = document.getElementById('opt-ocr-scan');
+        if (ocrCb) {
+            ocrCb.checked = safeStorage.getItem('readera-ocr-scan') === '1';
+            ocrCb.addEventListener('change', function() {
+                safeStorage.setItem('readera-ocr-scan', ocrCb.checked ? '1' : '0');
+                /* Limpar cache OCR ao alternar para forçar re-reconhecimento */
+                ocrPageCache = {};
+                ttsPageCache = { pageNum: null, text: '', ranges: [] };
+            });
+        }
+
         /* ── Botão Salvar e aplicar ── */
         var saveSettingsBtn = document.getElementById('btn-save-settings');
         if (saveSettingsBtn) {
@@ -2897,6 +2995,8 @@ var safeStorage = (function() {
                 if (readCb2)    safeStorage.setItem('readera-reading-mode', readCb2.checked ? '1' : '0');
                 if (autoClCb)   safeStorage.setItem(LS_AUTO_CLOUD, autoClCb.checked ? '1' : '0');
                 if (resumeClCb) safeStorage.setItem(LS_RESUME_CLOUD, resumeClCb.checked ? '1' : '0');
+                var ocrCb2 = document.getElementById('opt-ocr-scan');
+                if (ocrCb2)     safeStorage.setItem('readera-ocr-scan', ocrCb2.checked ? '1' : '0');
 
                 /* Feedback visual antes de recarregar */
                 saveSettingsBtn.textContent = '✔ Salvando…';
