@@ -1083,13 +1083,6 @@
         <div class="settings-screen-scroll" id="settings-screen-scroll">
             <div class="settings-screen-inner" id="settings-panel" role="region" aria-label="Opções de leitura">
                 <section class="settings-group">
-                    <h2 class="settings-group-title">Leitura</h2>
-                    <label class="settings-row"><input type="checkbox" id="opt-hide-chrome"><span class="settings-row-text">Ocultar cabeçalho ao abrir PDF</span></label>
-                    <p class="panel-hint">Esconde só o cabeçalho superior. Use ☰ na barra inferior para mostrar/ocultar a qualquer momento.</p>
-                    <label class="settings-row"><input type="checkbox" id="opt-reading-mode"><span class="settings-row-text">Modo leitura</span></label>
-                    <p class="panel-hint">Fundo calmo e página com aparência de leitor focado no texto. Com o tema escuro (🌙 no topo), o PDF também fica escurecido para leitura noturna.</p>
-                </section>
-                <section class="settings-group">
                     <h2 class="settings-group-title">Navegação</h2>
                     <div class="settings-field">
                         <span class="settings-field-label">Ir para página</span>
@@ -2887,7 +2880,7 @@ var safeStorage = (function() {
         const autoCloudCb = document.getElementById('opt-auto-cloud');
         const resumeCloudCb = document.getElementById('opt-resume-cloud');
         const showChrome = document.getElementById('btn-show-chrome');
-        if (!btn || !screen || !hideCb || !readCb || !showChrome) return;
+        if (!btn || !screen || !showChrome) return;
 
         function closeSettingsScreen() {
             screen.classList.remove('open');
@@ -2910,16 +2903,20 @@ var safeStorage = (function() {
         });
         if (backBtn) backBtn.addEventListener('click', closeSettingsScreen);
 
-        hideCb.addEventListener('change', function() {
-            safeStorage.setItem('readera-hide-chrome', hideCb.checked ? '1' : '0');
-            syncChromeHiddenState();
-            schedulePdfRelayout();
-        });
-        readCb.addEventListener('change', function() {
-            safeStorage.setItem('readera-reading-mode', readCb.checked ? '1' : '0');
-            document.body.classList.toggle('reading-mode', readCb.checked);
-            if (pdfDoc && !isRendering) renderPage(pageNum, isReading);
-        });
+        if (hideCb) {
+            hideCb.addEventListener('change', function() {
+                safeStorage.setItem('readera-hide-chrome', hideCb.checked ? '1' : '0');
+                syncChromeHiddenState();
+                schedulePdfRelayout();
+            });
+        }
+        if (readCb) {
+            readCb.addEventListener('change', function() {
+                safeStorage.setItem('readera-reading-mode', readCb.checked ? '1' : '0');
+                document.body.classList.toggle('reading-mode', readCb.checked);
+                if (pdfDoc && !isRendering) renderPage(pageNum, isReading);
+            });
+        }
         if (autoCloudCb) {
             autoCloudCb.addEventListener('change', function() {
                 safeStorage.setItem(LS_AUTO_CLOUD, autoCloudCb.checked ? '1' : '0');
@@ -2932,7 +2929,7 @@ var safeStorage = (function() {
         }
         showChrome.addEventListener('click', function() {
             var isNowHidden = document.body.classList.toggle('ui-chrome-hidden');
-            hideCb.checked = isNowHidden;
+            if (hideCb) hideCb.checked = isNowHidden;
             safeStorage.setItem('readera-hide-chrome', isNowHidden ? '1' : '0');
             schedulePdfRelayout();
         });
