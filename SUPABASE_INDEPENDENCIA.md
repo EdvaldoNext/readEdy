@@ -189,31 +189,30 @@ deixar o projeto pronto para producao com autenticacao, seguranca e fluxo funcio
 Comece agora lendo `SUPABASE_INDEPENDENCIA.md` e execute.
 ```
 
-## ReadEra (este repositório) — estado operacional
+## ReadEdy (este repositório) — estado operacional
 
-**Objetivo:** o agente consegue executar SQL remoto com a CLI já linkada, sem MCP.
+**Objetivo:** projeto Supabase **dedicado** só ao ReadEdy (sem QuickSync nem outras apps).
 
 | Item | Valor |
 |------|--------|
-| **Project ref** | `ezcmdbcxgqvonqewgvrm` |
-| **Nome no dashboard** | `quicksync-independente` |
-| **URL API** | `https://ezcmdbcxgqvonqewgvrm.supabase.co` |
-| **Chave no frontend** | `anon` (JWT) em `config.js` — **nunca** `service_role` no browser |
+| **Project ref** | `rxyzqyqsrgscnawetwtl` |
+| **Nome no dashboard** | `readedyy@gmail.com's Project` |
+| **Região** | `sa-east-1` |
+| **URL API** | `https://rxyzqyqsrgscnawetwtl.supabase.co` |
+| **Chave no frontend** | `sb_publishable_...` em `config.example.js` — **nunca** `service_role` no browser |
+| **MCP Cursor** | `.cursor/mcp.json` com `?project_ref=rxyzqyqsrgscnawetwtl` |
 
-### Por que este projeto (e não um “ReadEra” novo)?
+### Schema aplicado (2026-08-22)
 
-A conta atingiu o **limite de 2 projetos free**. `npx supabase projects create readera-independente` falhou com *maximum limits for the number of active free projects*. Foi feito `supabase link` neste ref para não reutilizar `epijxziihqnhwghiuuej` (PlanilhasB / `edevaldoprieto`), evitando misturar Auth e dados daquele app.
+Migrações em `supabase/migrations/` aplicadas no projeto novo:
 
-No banco já existia só `public.quick_sync_data`. A migração `supabase/migrations/20250513120000_readera_init.sql` foi aplicada com sucesso; hoje existem também `documents`, `user_preferences` e o bucket Storage **`pdfs`**.
-
-**Garantia QuickSync / outras apps:** esse SQL **não** altera, apaga nem insere em `quick_sync_data` (nem em qualquer outra tabela pré-existente). Só usa `CREATE TABLE IF NOT EXISTS`, políticas e Storage no bucket `pdfs`. **Nada precisa ser desfeito** em relação ao QuickSync.
-
-**Regra daqui em diante (ReadEra neste mesmo projeto Supabase):** qualquer tabela nova deste app deve ser criada **somente** com prefixo `readera_` (ex.: `readera_bookmarks`), ou em um schema dedicado `readera`, para nunca colidir com nomes genéricos de outros apps. As tabelas atuais `documents` e `user_preferences` já estão criadas com nomes genéricos; se quiser renomeá-las para `readera_documents` / `readera_user_preferences`, isso exige migração + ajuste no `index.html` — posso fazer noutro passo se pedir.
+- `documents`, `user_preferences`, bucket Storage **`pdfs`** (público)
+- RLS **anon** (sem login), igual ao modelo anterior do ReadEra
 
 ### Comandos de verificação (copiar e colar)
 
 ```bash
-cd C:\Users\Note\Documents\HTML\ReadEra
+cd C:\Users\Note\Documents\PROJETOS-REAIS\ReadEdy
 npx supabase projects list
 npx supabase db query --linked "select tablename from pg_tables where schemaname='public' order by 1;"
 ```
