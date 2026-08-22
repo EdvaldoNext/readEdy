@@ -12,8 +12,14 @@
     <!-- Supabase JS: local-first → CDN fallback -->
     <script src="./libs/supabase.min.js" onerror="window._SUPABASE_LOCAL_FAILED=true"></script>
     <script>if(window._SUPABASE_LOCAL_FAILED)document.write('<scr'+'ipt src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js" onerror="window._SUPABASEJS_FAILED=true"><\/scr'+'ipt>')</script>
-    <!-- config.example.js = deploy (GitHub Pages); config.js = opcional local (não versionado) -->
-    <script src="config.example.js"></script>
+    <!-- Config inline: projeto dedicado ReadEdy (rxyzqyqsrgscnawetwtl) -->
+    <script>
+    window.READERA_SUPABASE = {
+      url: 'https://rxyzqyqsrgscnawetwtl.supabase.co',
+      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4eXpxeXFzcmdzY25hd2V0d3RsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc0MjkzOTEsImV4cCI6MjEwMzAwNTM5MX0.e1P70z-3ICKxJH5IDm4HATwE04fp2Bw0yOyah8XBt0c'
+    };
+    </script>
+    <!-- config.js = override local (não versionado, gitignored) -->
     <script src="config.js" onerror="void 0"></script>
     <style>
         :root { --primary: #2c3e50; --bg: #f4f4f4; --text: #333; --panel: #fff; --accent: #3498db; --highlight: #fff3cd; --read-surface: #ece8e0; --read-page: #faf8f4; }
