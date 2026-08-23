@@ -124,6 +124,34 @@ window.ReadEdyAuth = (function() {
         });
     }
 
+    function signUpWithPassword(email, password) {
+        if (!client) return Promise.reject(new Error('Cliente Supabase não iniciado'));
+        if (!email) return Promise.reject(new Error('Informe o e-mail'));
+        if (!password || password.length < 6) {
+            return Promise.reject(new Error('A senha precisa ter no mínimo 6 caracteres'));
+        }
+        return client.auth.signUp({
+            email: email,
+            password: password,
+            options: { emailRedirectTo: getRedirectTo() }
+        }).then(function(res) {
+            if (res.error) throw res.error;
+            return res.data;
+        });
+    }
+
+    function signInWithPassword(email, password) {
+        if (!client) return Promise.reject(new Error('Cliente Supabase não iniciado'));
+        if (!email || !password) return Promise.reject(new Error('Informe e-mail e senha'));
+        return client.auth.signInWithPassword({
+            email: email,
+            password: password
+        }).then(function(res) {
+            if (res.error) throw res.error;
+            return res.data;
+        });
+    }
+
     function signOut() {
         if (!client) return Promise.resolve();
         return client.auth.signOut().then(function() {
@@ -152,6 +180,8 @@ window.ReadEdyAuth = (function() {
         authHeaders: authHeaders,
         signInWithGoogle: signInWithGoogle,
         signInWithEmail: signInWithEmail,
+        signUpWithPassword: signUpWithPassword,
+        signInWithPassword: signInWithPassword,
         signOut: signOut,
         logSessionStart: logSessionStart,
         tryLinkCheckoutAfterLogin: tryLinkCheckoutAfterLogin

@@ -5296,24 +5296,15 @@ var safeStorage = (function() {
         }).catch(function() {});
     }
 
-    function getCheckoutEmail() {
-        var input = document.getElementById('home-plan-email');
-        var typed = input ? String(input.value || '').trim() : '';
-        if (typed) return typed;
-        if (window.ReadEdyAuth && ReadEdyAuth.isLoggedIn()) {
-            var user = ReadEdyAuth.getUser();
-            if (user && user.email) return user.email;
-        }
-        return '';
-    }
-
     function startPlanCheckout(planSlug) {
         if (!window.ReadEdyBilling) return;
-        var email = getCheckoutEmail();
-        if (!email || email.indexOf('@') < 1) {
-            showNotification('Informe o e-mail da sua conta Mercado Pago para assinar.', true);
-            var input = document.getElementById('home-plan-email');
-            if (input) input.focus();
+        var loggedIn = window.ReadEdyAuth && ReadEdyAuth.isLoggedIn();
+        var user = loggedIn ? ReadEdyAuth.getUser() : null;
+        var email = user && user.email ? user.email : '';
+        if (!email) {
+            showNotification('Crie sua conta ou entre antes de assinar.', true);
+            var emailInput = document.getElementById('home-signup-email');
+            if (emailInput) emailInput.focus();
             return;
         }
         setAppLoading(true, 'A abrir checkout…');
@@ -5371,15 +5362,100 @@ var safeStorage = (function() {
             if (loggedIn && active && !needsLink) authUser.classList.remove('hidden');
             else authUser.classList.add('hidden');
         }
-        var planEmail = document.getElementById('home-plan-email');
-        if (planEmail && !planEmail.value && loggedIn && user && user.email) {
-            planEmail.value = user.email;
+        var signupBlock = document.getElementById('home-signup-block');
+        if (signupBlock) {
+            if (loggedIn) signupBlock.classList.add('hidden');
+            else signupBlock.classList.remove('hidden');
+        }
+        var leadText = document.getElementById('home-auth-lead-text');
+        if (leadText) {
+            leadText.textContent = loggedIn
+                ? 'Conta criada. Escolha o plano para ir ao pagamento.'
+                : 'Crie sua conta para assinar e sincronizar PDFs, TTS na nuvem e OCR. Leitura local continua gratuita.';
         }
         var signoutLogged = document.getElementById('home-btn-signout-logged');
         if (signoutLogged) {
             if (loggedIn && !needsLink) signoutLogged.classList.remove('hidden');
             else signoutLogged.classList.add('hidden');
         }
+    }
+
+    var signupMode = 'signup';
+
+    function wireSignupForm() {
+        var tabSignup = document.getElementById('home-tab-signup');
+        var tabSignin = document.getElementById('home-tab-signin');
+        var form = document.getElementById('home-signup-form');
+        var emailInput = document.getElementById('home-signup-email');
+        var passInput = document.getElementById('home-signup-password');
+        var submitBtn = document.getElementById('home-signup-submit');
+        var googleBtn = document.getElementById('home-btn-google-signup');
+        if (!form || !emailInput || !passInput || !submitBtn) return;
+
+        function setMode(mode) {
+            signupMode = mode;
+            var creating = mode === 'signup';
+            submitBtn.textContent = creating ? 'Criar conta' : 'Entrar';
+            passInput.setAttribute('autocomplete', creating ? 'new-password' : 'current-password');
+            if (tabSignup) tabSignup.classList.toggle('is-active', creating);
+            if (tabSignin) tabSignin.classList.toggle('is-active', !creating);
+        }
+
+        if (tabSignup) tabSignup.addEventListener('click', function() { setMode('signup'); });
+        if (tabSignin) tabSignin.addEventListener('click', function() { setMode('signin'); });
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (!window.ReadEdyAuth) return;
+            var email = String(emailInput.value || '').trim();
+            var password = String(passInput.value || '');
+            submitBtn.disabled = true;
+            var action = signupMode === 'signup'
+                ? ReadEdyAuth.signUpWithPassword(email, password)
+                : ReadEdyAuth.signInWithPassword(email, password);
+            action.then(function(data) {
+                if (signupMode === 'signup' && data && !data.session) {
+                    showNotification('Confirme o e-mail que enviamos para ativar a conta.', false);
+                    return;
+                }
+                passInput.value = '';
+                showNotification(signupMode === 'signup'
+                    ? 'Conta criada. Escolha o plano para pagar.'
+                    : 'Bem-vindo de volta.', false);
+            }).catch(function(err) {
+                showNotification(translateAuthError(err), true);
+            }).then(function() {
+                submitBtn.disabled = false;
+            });
+        });
+
+        if (googleBtn) {
+            googleBtn.addEventListener('click', function() {
+                if (!window.ReadEdyAuth) return;
+                ReadEdyAuth.signInWithGoogle().catch(function(err) {
+                    showNotification(err.message || String(err), true);
+                });
+            });
+        }
+
+        setMode('signup');
+    }
+
+    function translateAuthError(err) {
+        var msg = (err && err.message ? err.message : String(err || '')).toLowerCase();
+        if (msg.indexOf('already registered') >= 0 || msg.indexOf('already exists') >= 0) {
+            return 'Este e-mail já tem conta. Use "Já tenho conta" para entrar.';
+        }
+        if (msg.indexOf('invalid login credentials') >= 0) {
+            return 'E-mail ou senha incorretos.';
+        }
+        if (msg.indexOf('email not confirmed') >= 0) {
+            return 'Confirme o e-mail que enviamos antes de entrar.';
+        }
+        if (msg.indexOf('password') >= 0 && msg.indexOf('6') >= 0) {
+            return 'A senha precisa ter no mínimo 6 caracteres.';
+        }
+        return err && err.message ? err.message : String(err);
     }
 
     function wireAuthUi() {
@@ -5409,6 +5485,7 @@ var safeStorage = (function() {
                 });
             });
         }
+        wireSignupForm();
         if (recoverToggle && form) {
             recoverToggle.addEventListener('click', function() {
                 form.classList.toggle('hidden');

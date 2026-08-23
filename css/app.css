@@ -3641,9 +3641,31 @@
             align-self: flex-start;
             padding: 4px 0;
         }
-        .home-plan-email-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
-        .home-plan-email-label { font-size: 0.82rem; color: var(--home-text); font-weight: 600; }
-        .home-plan-email-hint { margin: 0; font-size: 0.76rem; color: var(--home-muted); line-height: 1.4; }
+        .home-signup-block {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 14px;
+            margin-bottom: 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.03);
+        }
+        .home-auth-tabs { display: flex; gap: 6px; }
+        .home-auth-tab {
+            flex: 1;
+            min-height: 36px;
+            border-radius: 9px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: transparent;
+            color: var(--home-muted);
+            font-size: 0.84rem;
+            cursor: pointer;
+        }
+        .home-auth-tab.is-active { background: rgba(255,255,255,0.08); color: var(--home-text); font-weight: 600; }
+        .home-signup-form { display: flex; flex-direction: column; gap: 8px; }
+        .home-signup-form .home-auth-email-input { flex: none; width: 100%; box-sizing: border-box; }
+        .home-auth-divider { margin: 0; text-align: center; font-size: 0.78rem; color: var(--home-muted); }
         .home-plan-cards {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

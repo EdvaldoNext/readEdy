@@ -432,11 +432,19 @@
             </div>
 
             <div id="home-auth-guest" class="home-auth-panel">
-                <p class="home-auth-lead">Assine para sincronizar PDFs, TTS na nuvem e OCR. Leitura local continua gratuita.</p>
-                <div class="home-plan-email-field">
-                    <label class="home-plan-email-label" for="home-plan-email">E-mail da sua conta Mercado Pago</label>
-                    <input type="email" id="home-plan-email" class="home-auth-email-input" placeholder="voce@email.com" autocomplete="email">
-                    <p class="home-plan-email-hint">O Mercado Pago exige que este e-mail seja o mesmo da conta usada para pagar.</p>
+                <p class="home-auth-lead" id="home-auth-lead-text">Crie sua conta para assinar e sincronizar PDFs, TTS na nuvem e OCR. Leitura local continua gratuita.</p>
+                <div class="home-signup-block" id="home-signup-block">
+                    <div class="home-auth-tabs">
+                        <button type="button" class="home-auth-tab is-active" id="home-tab-signup">Criar conta</button>
+                        <button type="button" class="home-auth-tab" id="home-tab-signin">Já tenho conta</button>
+                    </div>
+                    <form class="home-signup-form" id="home-signup-form">
+                        <input type="email" id="home-signup-email" class="home-auth-email-input" placeholder="Seu e-mail" autocomplete="email" required>
+                        <input type="password" id="home-signup-password" class="home-auth-email-input" placeholder="Senha (mínimo 6 caracteres)" autocomplete="new-password" minlength="6" required>
+                        <button type="submit" class="home-account-btn home-auth-btn-primary" id="home-signup-submit">Criar conta</button>
+                    </form>
+                    <p class="home-auth-divider">ou</p>
+                    <button type="button" class="home-account-btn" id="home-btn-google-signup">Continuar com Google</button>
                 </div>
                 <div class="home-plan-cards">
                     <article class="home-plan-card">
