@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ReadEdy Web Pro</title>
-    <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
-    <link rel="apple-touch-icon" href="./favicon.svg">
+    <link rel="icon" href="./docs/mockups/favicon-logo.png" type="image/png" sizes="32x32">
+    <link rel="apple-touch-icon" href="./docs/mockups/favicon-logo.png">
     <!-- PDF.js: local-first → CDN fallback -->
     <script src="./libs/pdf.min.js" onerror="window._PDFJS_LOCAL_FAILED=true"></script>
     <script>if(window._PDFJS_LOCAL_FAILED)document.write('<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.4.456/pdf.min.js" onerror="window._PDFJS_FAILED=true"><\/scr'+'ipt>')</script>
@@ -23,7 +23,7 @@
     <script src="config.js" onerror="void 0"></script>
     <!-- ?v= força o navegador/CDN a buscar a versão nova a cada deploy.
          Ao alterar css/app.css ou js/app.js, incremente este valor. -->
-    <link rel="stylesheet" href="./css/app.css?v=20260822e">
+    <link rel="stylesheet" href="./css/app.css?v=20260822v">
 </head>
 <body>
 
@@ -40,35 +40,69 @@
     <br><button onclick="document.getElementById('cdn-error-banner').style.display='none'" style="margin-top:8px; padding:4px 12px; border:none; border-radius:6px; background:rgba(255,255,255,0.2); color:#fff; cursor:pointer; font-weight:600;">✕ Fechar</button>
 </div>
 
-<div id="app-container">
+<div id="app-container" class="app-layout">
 
-<header>
-    <div class="header-home-bar" aria-label="Início ReadEdy">
-        <span class="home-logo">ReadEdy</span>
+<aside id="app-sidebar" class="app-sidebar" aria-label="Menu principal">
+    <div class="sidebar-brand">
+        <img class="sidebar-brand-icon" src="./docs/mockups/favicon-logo.png" alt="" width="36" height="36" decoding="async">
+        <span class="sidebar-brand-text">ReadEdy</span>
+    </div>
+    <nav class="sidebar-nav" aria-label="Navegação">
+        <button type="button" class="sidebar-nav-item home-nav-item is-active" data-home-nav="inicio" aria-current="page">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/></svg>
+            <span>Início</span>
+        </button>
+        <button type="button" class="sidebar-nav-item home-nav-item" data-home-nav="biblioteca">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h4v16H4zM10 4h4v16h-4z"/><path d="M17.2 4.6l3.3.9-3 15.1-3.3-.9z"/></svg>
+            <span>Biblioteca</span>
+        </button>
+        <button type="button" class="sidebar-nav-item home-nav-item" data-home-nav="favoritos">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.4 5.8L21 10l-4.5 4.2L17.5 21 12 18l-5.5 3 1-6.8L3 10l6.6-1.2z"/></svg>
+            <span>Favoritos</span>
+        </button>
+        <button type="button" class="sidebar-nav-item home-nav-item" data-home-nav="anotacoes">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+            <span>Anotações</span>
+        </button>
+        <button type="button" class="sidebar-nav-item home-nav-item" data-home-nav="estatisticas">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9M12 19V5M19 19v-7"/></svg>
+            <span>Estatísticas</span>
+        </button>
+    </nav>
+    <div class="sidebar-section">
+        <p class="sidebar-section-label">Biblioteca</p>
+        <button type="button" class="sidebar-sub-item" data-library-view="all">Todos os PDFs</button>
+        <button type="button" class="sidebar-sub-item" data-library-view="recent">Recentes</button>
+        <button type="button" class="sidebar-sub-item" data-library-view="cloud">Na nuvem</button>
+        <button type="button" class="sidebar-sub-item" data-home-nav="lixeira">Lixeiro</button>
+    </div>
+    <div class="sidebar-premium" aria-label="ReadEdy Premium">
+        <strong>ReadEdy Premium</strong>
+        <p>TTS ilimitado · Nuvem · OCR</p>
+        <button type="button" class="sidebar-premium-btn">Seja Premium</button>
+    </div>
+</aside>
+
+<div class="app-shell">
+<header class="app-topbar" aria-label="Barra superior">
+    <div class="topbar-search-wrap">
+        <svg class="ico topbar-search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg>
+        <input type="search" id="home-search" class="topbar-search" placeholder="Buscar livros, autores, temas..." autocomplete="off" aria-label="Buscar livros">
+    </div>
+    <div class="topbar-actions header-actions">
+        <button type="button" class="hdr-icon-btn" id="btn-theme" title="Inverter cores da página do PDF" aria-label="Inverter cores da página do PDF"></button>
         <button type="button" class="home-avatar-btn" id="home-header-account" title="Conta" aria-label="Conta">
             <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.5 3.1-5.6 7-5.6s7 2.1 7 5.6"/></svg>
         </button>
     </div>
-    <div class="home-toolbar" aria-label="Ações da biblioteca">
-        <div class="header-actions">
-            <button type="button" id="cloud-badge" class="hdr-icon-btn cloud-status-wait" title="Estado da nuvem" aria-label="Estado da nuvem" disabled>
-                <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H7a4 4 0 0 1-.5-7.97A5.5 5.5 0 0 1 17.4 10a4.5 4.5 0 0 1 .1 9z"/></svg>
-            </button>
-            <div class="cloud-library-wrap hdr-library-select hidden" id="cloud-library-wrap" title="Abrir PDF salvo na nuvem">
-                <button type="button" id="cloud-library-trigger" class="cloud-library-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="cloud-library-panel">PDFs</button>
-                <div id="cloud-library-panel" class="cloud-library-panel hidden" role="listbox" aria-label="Meus PDFs na nuvem"></div>
-            </div>
-            <button type="button" class="hdr-icon-btn hidden" id="btn-cloud-save" title="Guardar PDF na nuvem" aria-label="Guardar na nuvem">
-                <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 18H7a4 4 0 0 1-.5-7.97A5.5 5.5 0 0 1 17.4 9a4.5 4.5 0 0 1 .1 9z"/><path d="M12 21v-7M9.5 16.5L12 14l2.5 2.5"/></svg>
-            </button>
-            <button type="button" class="hdr-icon-btn hdr-icon-danger hidden" id="btn-cloud-delete" title="Apagar todos os PDFs da nuvem" aria-label="Apagar todos os PDFs da nuvem">
-                <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>
-            </button>
-            <button type="button" class="hdr-icon-btn" id="btn-theme" title="Inverter cores da página do PDF" aria-label="Inverter cores da página do PDF"></button>
-            <button type="button" class="hdr-icon-btn hdr-icon-primary" id="btn-open-pdf" title="Abrir PDF" aria-label="Abrir PDF" onclick="document.getElementById('file-input').click()">
-                <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-            </button>
+    <div class="hidden" aria-hidden="true">
+        <button type="button" id="cloud-badge" class="hdr-icon-btn cloud-status-wait" disabled></button>
+        <div class="cloud-library-wrap hidden" id="cloud-library-wrap">
+            <button type="button" id="cloud-library-trigger" class="cloud-library-trigger" aria-controls="cloud-library-panel">PDFs</button>
+            <div id="cloud-library-panel" class="cloud-library-panel hidden" role="listbox"></div>
         </div>
+        <button type="button" class="hidden" id="btn-cloud-save"></button>
+        <button type="button" class="hidden" id="btn-cloud-delete"></button>
     </div>
     <input type="file" id="file-input" accept="application/pdf" class="hidden">
 </header>
@@ -165,60 +199,199 @@
             <section class="home-continue-card" id="home-continue-card" aria-label="Continue ouvindo">
                 <h2 class="home-card-label">Continue ouvindo</h2>
                 <div class="home-continue-row hidden" id="home-continue-row">
-                    <div class="home-continue-cover" id="home-continue-cover" aria-hidden="true"></div>
-                    <div class="home-continue-body">
-                        <h3 class="home-continue-title" id="home-continue-title"></h3>
-                        <p class="home-continue-meta" id="home-continue-meta"></p>
-                        <div class="home-continue-progress-track"><div class="home-continue-progress-fill" id="home-continue-progress-fill"></div></div>
-                        <div class="home-continue-footer">
+                    <div class="home-continue-left">
+                        <div class="home-continue-cover-wrap">
+                            <div class="home-continue-cover" id="home-continue-cover" aria-hidden="true"></div>
+                            <span class="home-pdf-badge">PDF</span>
+                        </div>
+                        <div class="home-continue-body">
+                            <h3 class="home-continue-title" id="home-continue-title"></h3>
+                            <p class="home-continue-meta" id="home-continue-meta"></p>
+                            <div class="home-continue-progress-track"><div class="home-continue-progress-fill" id="home-continue-progress-fill"></div></div>
                             <span class="home-continue-pct" id="home-continue-pct"></span>
-                            <button type="button" class="home-view-btn" id="home-btn-view-book" title="Ver as páginas do PDF" aria-label="Visualizar livro">
-                                <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.6"/></svg>
-                                Visualizar livro
-                            </button>
+                            <div class="home-continue-actions">
+                                <button type="button" class="home-continue-btn" id="home-continue-play" title="Continuar ouvindo" aria-label="Continuar ouvindo">
+                                    <svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                                    Continuar
+                                </button>
+                                <button type="button" class="home-view-btn" id="home-btn-view-book" title="Ver as páginas do PDF" aria-label="Visualizar livro">
+                                    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.6"/></svg>
+                                    Visualizar livro
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <button type="button" class="home-continue-play" id="home-continue-play" title="Ouvir" aria-label="Ouvir">
-                        <svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-                    </button>
+                    <div class="home-continue-art" aria-hidden="true">
+                        <img class="home-continue-art-img" src="./docs/mockups/livro.png" alt="" width="320" height="240" loading="lazy" decoding="async">
+                    </div>
                 </div>
                 <div class="home-continue-empty" id="home-continue-empty">
                     <p>Nenhum livro por aqui ainda.</p>
                     <p class="home-continue-empty-hint">Abra um PDF ou adicione um livro abaixo.</p>
                 </div>
             </section>
-            <div class="home-actions">
-                <button type="button" class="home-btn home-btn-outline" id="home-btn-open-pdf">
-                    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
-                    Abrir PDF
+            <div class="home-quick-actions">
+                <button type="button" class="home-quick-card" id="home-btn-open-pdf">
+                    <span class="home-quick-icon">
+                        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+                    </span>
+                    <strong>Abrir PDF</strong>
+                    <span class="home-quick-desc">Selecione um arquivo do seu dispositivo</span>
                 </button>
-                <button type="button" class="home-btn home-btn-filled" id="home-btn-cloud">
-                    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H7a4 4 0 0 1-.5-7.97A5.5 5.5 0 0 1 17.4 10a4.5 4.5 0 0 1 .1 9z"/></svg>
-                    Na nuvem
+                <button type="button" class="home-quick-card" id="home-btn-cloud">
+                    <span class="home-quick-icon">
+                        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H7a4 4 0 0 1-.5-7.97A5.5 5.5 0 0 1 17.4 10a4.5 4.5 0 0 1 .1 9z"/></svg>
+                    </span>
+                    <strong>Na nuvem</strong>
+                    <span class="home-quick-desc">Acesse seus arquivos salvos</span>
+                </button>
+                <button type="button" class="home-quick-card" id="home-btn-stats">
+                    <span class="home-quick-icon">
+                        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9M12 19V5M19 19v-7"/></svg>
+                    </span>
+                    <strong>Estatísticas</strong>
+                    <span class="home-quick-desc">Acompanhe seu progresso</span>
                 </button>
             </div>
+            <!-- Espaço reservado para anúncios futuros -->
+            <div class="ad-slot ad-slot--banner hidden" id="ad-slot-home" aria-hidden="true" data-ad-placeholder="banner"></div>
             <section class="home-books" aria-label="Meus livros">
                 <div class="home-books-header">
                     <h2 class="home-section-label">Meus livros</h2>
-                    <button type="button" class="home-link-btn" id="home-btn-ver-todos">Ver todos ›</button>
+                    <div class="home-books-nav">
+                        <button type="button" class="home-link-btn" id="home-btn-ver-todos">Ver todos ›</button>
+                        <button type="button" class="home-carousel-btn" id="home-books-prev" title="Anterior" aria-label="Livros anteriores">
+                            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+                        </button>
+                        <button type="button" class="home-carousel-btn" id="home-books-next" title="Próximo" aria-label="Próximos livros">
+                            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+                        </button>
+                    </div>
                 </div>
                 <div class="home-books-scroll" id="home-books-carousel" role="list"></div>
-            </section>
-            <section class="home-pro-banner" aria-label="ReadEdy Pro">
-                <svg class="home-pro-icon ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="5"/><path d="M12 6.6l.9 1.9 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2L9.1 8.8l2-.3z"/><path d="M8.5 13.5L7 22l5-2.6L17 22l-1.5-8.5"/></svg>
-                <div class="home-pro-text">
-                    <strong>Experimente ReadEdy Pro grátis</strong>
-                    <span>TTS ilimitado · Nuvem · OCR</span>
-                </div>
-                <span class="home-pro-badge">30 dias</span>
             </section>
         </div>
         <div class="home-tab-panel hidden" id="home-tab-biblioteca" data-home-tab="biblioteca">
             <div class="home-library-header">
-                <h2 class="home-section-label">Biblioteca</h2>
-                <p class="home-library-sub">PDFs guardados na nuvem</p>
+                <h2 class="home-section-label" id="home-library-title">Biblioteca</h2>
+                <p class="home-library-sub" id="home-library-sub">PDFs guardados na nuvem</p>
             </div>
             <div class="home-library-list" id="home-library-list" role="list"></div>
+        </div>
+        <div class="home-tab-panel hidden" id="home-tab-lixeira" data-home-tab="lixeira">
+            <div class="home-library-header">
+                <h2 class="home-section-label">Lixeiro</h2>
+                <p class="home-library-sub">Restaure ou apague permanentemente</p>
+            </div>
+            <div class="home-library-list" id="home-trash-list" role="list"></div>
+        </div>
+        <div class="home-tab-panel hidden" id="home-tab-favoritos" data-home-tab="favoritos">
+            <div class="home-library-header">
+                <h2 class="home-section-label">Favoritos</h2>
+                <p class="home-library-sub">Livros marcados com estrela</p>
+            </div>
+            <div class="home-library-list" id="home-favorites-list" role="list"></div>
+        </div>
+        <div class="home-tab-panel hidden" id="home-tab-anotacoes" data-home-tab="anotacoes">
+            <div class="home-library-header">
+                <h2 class="home-section-label">Anotações</h2>
+                <p class="home-library-sub">Notas por livro e página — use o botão de nota no leitor</p>
+            </div>
+            <div class="home-notes-list" id="home-notes-list" role="list"></div>
+            <p class="home-library-empty hidden" id="home-notes-empty">Nenhuma anotação ainda. Abra um livro e use o botão de nota no leitor.</p>
+        </div>
+        <div class="home-tab-panel hidden" id="home-tab-estatisticas" data-home-tab="estatisticas">
+            <div class="home-stats-header">
+                <h2 class="home-section-label">Estatísticas</h2>
+                <p class="home-stats-sub" id="stats-summary">Acompanhe seu progresso de leitura</p>
+            </div>
+            <div class="home-stats-grid">
+                <div class="home-stat-card">
+                    <span class="home-stat-value" id="stats-books">0</span>
+                    <span class="home-stat-label">Livros na nuvem</span>
+                </div>
+                <div class="home-stat-card">
+                    <span class="home-stat-value" id="stats-pages">0</span>
+                    <span class="home-stat-label">Páginas lidas</span>
+                </div>
+                <div class="home-stat-card">
+                    <span class="home-stat-value" id="stats-avg">0%</span>
+                    <span class="home-stat-label">Progresso médio</span>
+                </div>
+                <div class="home-stat-card">
+                    <span class="home-stat-value" id="stats-completed">0</span>
+                    <span class="home-stat-label">Concluídos</span>
+                </div>
+                <div class="home-stat-card">
+                    <span class="home-stat-value" id="stats-tts">0 min</span>
+                    <span class="home-stat-label">Tempo ouvindo</span>
+                </div>
+                <div class="home-stat-card">
+                    <span class="home-stat-value" id="stats-active-week">0</span>
+                    <span class="home-stat-label">Ativos esta semana</span>
+                </div>
+            </div>
+            <section class="home-stats-section" aria-label="Progresso geral" id="stats-overall-section">
+                <h3 class="home-stats-section-title">Progresso geral</h3>
+                <div class="home-stats-overall">
+                    <div class="home-stats-overall-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="stats-overall-bar">
+                        <div class="home-stats-overall-fill" id="stats-overall-fill"></div>
+                    </div>
+                    <p class="home-stats-overall-meta" id="stats-overall-meta">0 de 0 páginas · 0%</p>
+                </div>
+            </section>
+            <section class="home-stats-section home-stats-detail hidden" id="stats-book-detail" aria-label="Estatísticas do livro">
+                <button type="button" class="home-stats-back" id="stats-book-back">
+                    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+                    Voltar ao resumo
+                </button>
+                <div class="home-stats-detail-card">
+                    <div class="home-stats-detail-head">
+                        <span class="home-stats-detail-cover" id="stats-detail-cover"></span>
+                        <div class="home-stats-detail-head-text">
+                            <h3 class="home-stats-detail-title" id="stats-detail-title"></h3>
+                            <span class="home-stats-detail-badge" id="stats-detail-status"></span>
+                        </div>
+                    </div>
+                    <div class="home-stats-detail-progress">
+                        <div class="home-stats-overall-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="stats-detail-bar">
+                            <div class="home-stats-overall-fill" id="stats-detail-fill"></div>
+                        </div>
+                        <p class="home-stats-overall-meta" id="stats-detail-progress-meta"></p>
+                    </div>
+                    <div class="home-stats-detail-grid">
+                        <div class="home-stat-card home-stat-card--compact">
+                            <span class="home-stat-value" id="stats-detail-pages">—</span>
+                            <span class="home-stat-label">Páginas lidas</span>
+                        </div>
+                        <div class="home-stat-card home-stat-card--compact">
+                            <span class="home-stat-value" id="stats-detail-remaining">—</span>
+                            <span class="home-stat-label">Páginas restantes</span>
+                        </div>
+                        <div class="home-stat-card home-stat-card--compact">
+                            <span class="home-stat-value" id="stats-detail-tts">—</span>
+                            <span class="home-stat-label">Tempo ouvindo</span>
+                        </div>
+                        <div class="home-stat-card home-stat-card--compact">
+                            <span class="home-stat-value" id="stats-detail-size">—</span>
+                            <span class="home-stat-label">Tamanho</span>
+                        </div>
+                        <div class="home-stat-card home-stat-card--compact">
+                            <span class="home-stat-value" id="stats-detail-updated">—</span>
+                            <span class="home-stat-label">Última leitura</span>
+                        </div>
+                        <div class="home-stat-card home-stat-card--compact">
+                            <span class="home-stat-value" id="stats-detail-created">—</span>
+                            <span class="home-stat-label">Adicionado</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="home-stats-section" aria-label="Por livro">
+                <h3 class="home-stats-section-title">Por livro</h3>
+                <div class="home-stats-books" id="stats-books-list" role="list"></div>
+                <p class="home-stats-empty hidden" id="stats-books-empty">Nenhum livro na nuvem ainda. Abra um PDF ou envie para a nuvem para ver estatísticas.</p>
+            </section>
         </div>
         <div class="home-tab-panel hidden" id="home-tab-conta" data-home-tab="conta">
             <div class="home-account-card">
@@ -258,10 +431,11 @@
 
 <div id="tts-toast" role="status" aria-live="polite"></div>
 <div id="reader-topbar" class="reader-topbar" aria-label="Barra do leitor">
-    <button type="button" class="reader-icon-btn" id="btn-reader-back" title="Voltar ao início" aria-label="Voltar ao início">
-        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
-    </button>
-    <span class="reader-book-title" id="reader-book-title">Leitura</span>
+        <button type="button" class="reader-icon-btn" id="btn-reader-back" title="Voltar ao início" aria-label="Voltar ao início">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <button type="button" class="reader-icon-btn" id="btn-theme-reader" title="Inverter cores da página do PDF" aria-label="Inverter cores da página do PDF"></button>
+        <span class="reader-book-title" id="reader-book-title">Leitura</span>
 </div>
 <div class="reader-float-left" aria-label="Controles rápidos de leitura">
     <button type="button" id="btn-show-chrome" class="reader-chrome-fab" title="Mostrar/ocultar barras" aria-label="Alternar barras">
@@ -276,6 +450,20 @@
         </button>
         <button type="button" id="btn-zoom-out" class="reader-chrome-fab reader-zoom-btn" title="Diminuir texto" aria-label="Diminuir texto">A−</button>
         <button type="button" id="btn-zoom-in"  class="reader-chrome-fab reader-zoom-btn" title="Aumentar texto" aria-label="Aumentar texto">A+</button>
+        <button type="button" id="btn-note-float" class="reader-chrome-fab" title="Anotar página" aria-label="Anotar página">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+        </button>
+    </div>
+</div>
+<div id="note-modal" class="note-modal hidden" role="dialog" aria-modal="true" aria-labelledby="note-modal-title" aria-hidden="true">
+    <div class="note-modal-card">
+        <h2 class="note-modal-title" id="note-modal-title">Nova anotação</h2>
+        <p class="note-modal-meta" id="note-modal-meta"></p>
+        <textarea id="note-modal-text" class="note-modal-text" rows="5" placeholder="Escreva sua anotação…"></textarea>
+        <div class="note-modal-actions">
+            <button type="button" class="note-modal-btn note-modal-btn--ghost" id="note-modal-cancel">Cancelar</button>
+            <button type="button" class="note-modal-btn note-modal-btn--primary" id="note-modal-save">Salvar</button>
+        </div>
     </div>
 </div>
 <div id="reader-scroll-nav" class="scroll-nav-stack scroll-nav-stack--reader" aria-label="Rolar página do PDF">
@@ -288,18 +476,44 @@
 </div>
 <div id="reader-float-bar" aria-label="Controles de leitura sobre o PDF"></div>
 
-<div id="home-mini-player" class="home-mini-player hidden" aria-label="Leitor em miniatura">
-    <button type="button" class="home-mini-thumb" id="home-mini-thumb" aria-hidden="true"></button>
-    <button type="button" class="home-mini-info" id="home-mini-info">
-        <span class="home-mini-title" id="home-mini-title">—</span>
-        <span class="home-mini-progress-track"><span class="home-mini-progress-fill" id="home-mini-progress-fill"></span></span>
-    </button>
-    <button type="button" class="home-mini-tts" id="home-mini-tts" title="Ouvir" aria-label="Ouvir">
-        <svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-    </button>
+<div id="home-mini-player" class="app-player-bar hidden" aria-label="Leitor de áudio">
+    <div class="player-left">
+        <button type="button" class="home-mini-thumb" id="home-mini-thumb" aria-hidden="true"></button>
+        <button type="button" class="home-mini-info" id="home-mini-info">
+            <span class="home-mini-title" id="home-mini-title">—</span>
+            <span class="home-mini-page" id="home-mini-page">—</span>
+        </button>
+    </div>
+    <div class="player-center">
+        <button type="button" class="player-ctrl-btn" id="player-shuffle" title="Aleatório" aria-label="Aleatório" disabled>
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+        </button>
+        <button type="button" class="player-ctrl-btn" id="player-prev" title="Página anterior" aria-label="Página anterior">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <button type="button" class="player-play-btn home-mini-tts" id="home-mini-tts" title="Ouvir" aria-label="Ouvir">
+            <svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button type="button" class="player-ctrl-btn" id="player-next" title="Próxima página" aria-label="Próxima página">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+        </button>
+        <button type="button" class="player-ctrl-btn" id="player-repeat" title="Repetir" aria-label="Repetir" disabled>
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        </button>
+    </div>
+    <div class="player-right">
+        <span class="player-speed" id="player-speed-label" title="Velocidade">1.0×</span>
+        <input type="range" class="player-volume" id="player-volume" min="0" max="100" value="100" title="Volume" aria-label="Volume">
+        <button type="button" class="player-ctrl-btn" id="player-menu" title="Mais opções" aria-label="Mais opções">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="19" r="1.2" fill="currentColor"/></svg>
+        </button>
+    </div>
+    <span class="home-mini-progress-track player-progress"><span class="home-mini-progress-fill" id="home-mini-progress-fill"></span></span>
 </div>
 
-<nav id="home-bottom-nav" class="home-bottom-nav" aria-label="Navegação principal">
+</div><!-- .app-shell -->
+
+<nav id="home-bottom-nav" class="home-bottom-nav home-bottom-nav--mobile" aria-label="Navegação principal">
     <button type="button" class="home-nav-item is-active" data-home-nav="inicio" aria-current="page">
         <svg class="home-nav-icon ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/></svg>
         <span class="home-nav-label">Início</span>
@@ -342,6 +556,6 @@
 
 </div>
 
-<script src="./js/app.js?v=20260822e"></script>
+<script src="./js/app.js?v=20260822v"></script>
 </body>
 </html>

@@ -184,8 +184,6 @@ var safeStorage = (function() {
             document.getElementById('cdn-error-banner').style.display = 'block';
         }
         if (pdfFailed) {
-            var btnOpen = document.getElementById('btn-open-pdf');
-            if (btnOpen) btnOpen.disabled = true;
             ['home-btn-open-pdf', 'home-btn-open-pdf-account'].forEach(function(id) {
                 var el = document.getElementById(id);
                 if (el) el.disabled = true;
@@ -242,9 +240,26 @@ var safeStorage = (function() {
     var cloudLibraryPanelOpen = false;
     var cloudLibrarySuppressClose = false;
     var cloudLibraryRows = [];
+    var _coverMem = {};
+    var _coverQueue = [];
+    var _coverInflight = 0;
+    var COVER_MAX_INFLIGHT = 2;
+    var LS_COVER_PREFIX = 'readera-cover-v1:';
     var homeFeaturedDocId = null;
     var homeFeaturedIsOpen = false;
     var homeActiveTab = 'inicio';
+    var homeSearchQuery = '';
+    var libraryViewMode = 'all';
+    var LS_TRASH = 'readera-trash-v1';
+    var LIBRARY_RECENT_DAYS = 30;
+    var statsSelectedBookId = null;
+    var LS_FAVORITES = 'readera-favorites-v1';
+    var LS_NOTES = 'readera-notes-v1';
+    var _noteEditId = null;
+    var LS_STATS_TTS_SECONDS = 'readera-stats-tts-seconds';
+    var LS_STATS_TTS_BOOK_PREFIX = 'readera-stats-tts-book:';
+    var _statsTtsTickAt = null;
+    var _statsTtsBookId = null;
     /* homeView: com um PDF carregado, indica se o shell mostra a Home
        (Continue ouvindo / Biblioteca / Conta) em vez da área de leitura. */
     var homeView = false;
@@ -387,11 +402,50 @@ var safeStorage = (function() {
     var ICON_SUN  = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>';
     var ICON_MOON = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
 
+    function isPdfThemeDark() {
+        return document.body.classList.contains('dark');
+    }
+
     function applyTheme(dark) {
-        document.body.classList.toggle('dark', dark);
+        if (dark) document.body.classList.add('dark');
+        else document.body.classList.remove('dark');
         safeStorage.setItem('readera-theme', dark ? 'dark' : 'light');
-        var themeBtn = document.getElementById('btn-theme');
-        if (themeBtn) themeBtn.innerHTML = dark ? ICON_SUN : ICON_MOON;
+        var icon = dark ? ICON_SUN : ICON_MOON;
+        var title = dark
+            ? 'Cores invertidas — toque para voltar ao normal'
+            : 'Inverter cores da página do PDF';
+        ['btn-theme', 'btn-theme-reader'].forEach(function(id) {
+            var themeBtn = document.getElementById(id);
+            if (!themeBtn) return;
+            themeBtn.innerHTML = icon;
+            themeBtn.title = title;
+            themeBtn.setAttribute('aria-label', title);
+            themeBtn.setAttribute('aria-pressed', dark ? 'true' : 'false');
+            if (dark) themeBtn.classList.add('is-active');
+            else themeBtn.classList.remove('is-active');
+        });
+    }
+
+    function togglePdfTheme() {
+        applyTheme(!isPdfThemeDark());
+        schedulePushUserPreferences();
+        if (typeof showTtsToast === 'function') {
+            showTtsToast(isPdfThemeDark() ? 'Cores do PDF invertidas' : 'Cores normais do PDF');
+        }
+    }
+
+    function wireThemeButtons() {
+        ['btn-theme', 'btn-theme-reader'].forEach(function(id) {
+            var btn = document.getElementById(id);
+            if (!btn || btn._themeBound) return;
+            btn._themeBound = true;
+            btn.addEventListener('click', togglePdfTheme);
+        });
+        var homeBtn = document.getElementById('home-btn-theme');
+        if (homeBtn && !homeBtn._themeBound) {
+            homeBtn._themeBound = true;
+            homeBtn.addEventListener('click', togglePdfTheme);
+        }
     }
 
     function setCloudBadge(state, title) {
@@ -409,10 +463,7 @@ var safeStorage = (function() {
         var accountStatus = document.getElementById('home-account-cloud-status');
         if (accountStatus && title) accountStatus.textContent = title;
     }
-    document.getElementById('btn-theme').addEventListener('click', function() {
-        applyTheme(!document.body.classList.contains('dark'));
-        schedulePushUserPreferences();
-    });
+    wireThemeButtons();
     applyTheme(safeStorage.getItem('readera-theme') === 'dark');
 
     /* ══════════════════════════════════════════════════════════════
@@ -705,6 +756,7 @@ var safeStorage = (function() {
             b.classList.toggle('rate-active', active);
             b.setAttribute('aria-pressed', active ? 'true' : 'false');
         });
+        if (typeof updatePlayerSpeedLabel === 'function') updatePlayerSpeedLabel();
     }
 
     _rateBtns.forEach(function(btn) {
@@ -2073,6 +2125,8 @@ var safeStorage = (function() {
             btn.innerHTML = (state === 'playing') ? MINI_ICON_PAUSE : MINI_ICON_PLAY;
         });
         setMiniTtsIcon(state === 'playing');
+        if (state === 'playing') statsMarkTtsActive();
+        else statsFlushTtsTime();
     }
 
     function updateTtsButtonLabel() {
@@ -2101,6 +2155,7 @@ var safeStorage = (function() {
 
     function scheduleCloudProgress() {
         if (!readeraSb || !cloudDocumentId || !pdfDoc) return;
+        patchCloudRowProgress(cloudDocumentId, pageNum, pdfDoc.numPages);
         clearTimeout(progressSaveTimer);
         progressSaveTimer = setTimeout(function() {
             readeraSb.from('documents').update({
@@ -2110,6 +2165,18 @@ var safeStorage = (function() {
                 console.warn('Supabase: progresso não salvo', err);
             });
         }, 900);
+    }
+
+    function patchCloudRowProgress(id, lastPage, numPages) {
+        if (!id) return;
+        for (var i = 0; i < cloudLibraryRows.length; i++) {
+            if (cloudLibraryRows[i].id !== id) continue;
+            cloudLibraryRows[i].last_page = lastPage;
+            cloudLibraryRows[i].num_pages = numPages;
+            cloudLibraryRows[i].updated_at = new Date().toISOString();
+            if (homeActiveTab === 'estatisticas') renderHomeStats();
+            return;
+        }
     }
 
     function updateCloudChrome() {
@@ -2180,7 +2247,11 @@ var safeStorage = (function() {
     /* Play/pause em SVG nos três lugares: card da Home, mini-player e leitor */
     function setPlayPauseIcon(el, playing) {
         if (!el) return;
-        el.innerHTML = playing ? MINI_ICON_PAUSE : MINI_ICON_PLAY;
+        if (el.id === 'home-continue-play') {
+            el.innerHTML = (playing ? MINI_ICON_PAUSE : MINI_ICON_PLAY) + ' ' + (playing ? 'Pausar' : 'Continuar');
+        } else {
+            el.innerHTML = playing ? MINI_ICON_PAUSE : MINI_ICON_PLAY;
+        }
         el.title = playing ? 'Pausar' : 'Ouvir';
         el.setAttribute('aria-label', el.title);
     }
@@ -2202,11 +2273,118 @@ var safeStorage = (function() {
         return Math.abs(h) % 360;
     }
 
-    function applyBookCoverEl(el, title) {
+    function applyBookCoverEl(el, title, imageUrl) {
         if (!el) return;
+        var t = String(title || '?').trim();
+        el.setAttribute('data-cover-title', t);
+        if (imageUrl) {
+            el.textContent = '';
+            el.classList.add('has-cover-img');
+            el.style.backgroundImage = 'url("' + imageUrl + '")';
+            el.style.backgroundSize = 'cover';
+            el.style.backgroundPosition = 'center top';
+            el.style.backgroundRepeat = 'no-repeat';
+            el.style.backgroundColor = '#1a1d26';
+            return;
+        }
+        el.classList.remove('has-cover-img');
+        el.style.backgroundImage = '';
         el.textContent = bookCoverInitial(title);
         var hue = bookCoverHue(title);
         el.style.background = 'linear-gradient(145deg, hsl(' + hue + ',45%,28%), hsl(' + hue + ',35%,14%))';
+    }
+
+    function getCachedCover(id) {
+        if (!id) return null;
+        if (_coverMem[id]) return _coverMem[id];
+        try {
+            var stored = safeStorage.getItem(LS_COVER_PREFIX + id);
+            if (stored) {
+                _coverMem[id] = stored;
+                return stored;
+            }
+        } catch (e) {}
+        return null;
+    }
+
+    function setCachedCover(id, imageUrl) {
+        if (!id || !imageUrl) return;
+        _coverMem[id] = imageUrl;
+        try { safeStorage.setItem(LS_COVER_PREFIX + id, imageUrl); } catch (e) {}
+        var nodes = document.querySelectorAll('[data-cover-doc="' + id + '"]');
+        for (var i = 0; i < nodes.length; i++) {
+            applyBookCoverEl(nodes[i], nodes[i].getAttribute('data-cover-title') || '', imageUrl);
+        }
+    }
+
+    function generatePdfCoverDataUrl(arrayBuffer, targetWidth) {
+        if (!pdfjsLib || !arrayBuffer) return Promise.resolve(null);
+        var copy = arrayBuffer.slice ? arrayBuffer.slice(0) : arrayBuffer;
+        var loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(copy) });
+        return loadingTask.promise.then(function(doc) {
+            return doc.getPage(1).then(function(page) {
+                var width = targetWidth || 280;
+                var vp1 = page.getViewport({ scale: 1 });
+                var scale = width / vp1.width;
+                var viewport = page.getViewport({ scale: scale });
+                var canvas = document.createElement('canvas');
+                var ctx = canvas.getContext('2d');
+                canvas.width = Math.ceil(viewport.width);
+                canvas.height = Math.ceil(viewport.height);
+                return page.render({ canvasContext: ctx, viewport: viewport }).promise.then(function() {
+                    var url = canvas.toDataURL('image/jpeg', 0.84);
+                    try { doc.destroy(); } catch (e) {}
+                    return url;
+                });
+            });
+        }).catch(function() { return null; });
+    }
+
+    function ensureCoverForBytes(docId, bytes) {
+        if (!docId || !bytes || getCachedCover(docId)) return Promise.resolve(null);
+        var buf = bytes.buffer
+            ? bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+            : bytes;
+        return generatePdfCoverDataUrl(buf, 280).then(function(url) {
+            if (url) setCachedCover(docId, url);
+            return url;
+        });
+    }
+
+    function drainCoverQueue() {
+        while (_coverInflight < COVER_MAX_INFLIGHT && _coverQueue.length) {
+            var row = _coverQueue.shift();
+            if (!row || !row.id || getCachedCover(row.id)) continue;
+            _coverInflight++;
+            downloadPdfFromStoragePath(row.storage_path).then(function(buf) {
+                return generatePdfCoverDataUrl(buf, 280);
+            }).then(function(url) {
+                if (url) setCachedCover(row.id, url);
+            }).catch(function() {}).then(function() {
+                _coverInflight--;
+                drainCoverQueue();
+            });
+        }
+    }
+
+    function hydrateBookCover(row, el) {
+        if (!el || !row) return;
+        var title = row.title || row.id;
+        if (row.id) el.setAttribute('data-cover-doc', row.id);
+        var cached = row.id ? getCachedCover(row.id) : null;
+        if (cached) {
+            applyBookCoverEl(el, title, cached);
+            return;
+        }
+        applyBookCoverEl(el, title, null);
+        if (row.id && cloudDocumentId === row.id && pdfCacheBytes) {
+            ensureCoverForBytes(row.id, pdfCacheBytes);
+            return;
+        }
+        if (row.id && row.storage_path && readeraSb) {
+            _coverQueue.push(row);
+            drainCoverQueue();
+        }
     }
 
     function docProgressPct(row) {
@@ -2217,7 +2395,317 @@ var safeStorage = (function() {
         return 0;
     }
 
+    function statsMarkTtsActive() {
+        if (!_statsTtsTickAt) {
+            _statsTtsTickAt = Date.now();
+            _statsTtsBookId = cloudDocumentId || null;
+        }
+    }
+
+    function statsFlushTtsTime() {
+        if (!_statsTtsTickAt) return;
+        var elapsed = Math.floor((Date.now() - _statsTtsTickAt) / 1000);
+        var bookId = _statsTtsBookId;
+        _statsTtsTickAt = null;
+        _statsTtsBookId = null;
+        if (elapsed <= 0) return;
+        var prev = parseInt(safeStorage.getItem(LS_STATS_TTS_SECONDS) || '0', 10) || 0;
+        safeStorage.setItem(LS_STATS_TTS_SECONDS, String(prev + elapsed));
+        if (bookId) {
+            var bookPrev = parseInt(safeStorage.getItem(LS_STATS_TTS_BOOK_PREFIX + bookId) || '0', 10) || 0;
+            safeStorage.setItem(LS_STATS_TTS_BOOK_PREFIX + bookId, String(bookPrev + elapsed));
+        }
+        if (homeActiveTab === 'estatisticas') renderHomeStats();
+    }
+
+    function getBookTtsSeconds(bookId) {
+        if (!bookId) return 0;
+        var sec = parseInt(safeStorage.getItem(LS_STATS_TTS_BOOK_PREFIX + bookId) || '0', 10) || 0;
+        if (_statsTtsTickAt && _statsTtsBookId === bookId) {
+            sec += Math.floor((Date.now() - _statsTtsTickAt) / 1000);
+        }
+        return sec;
+    }
+
+    function formatStatDate(iso) {
+        if (!iso) return '—';
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return '—';
+        return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    function bookStatusLabel(lp, np, pct) {
+        if (np > 0 && lp >= np) return { text: 'Concluído', cls: 'is-done' };
+        if (lp > 1 || pct > 0) return { text: 'Em leitura', cls: '' };
+        return { text: 'Não iniciado', cls: 'is-new' };
+    }
+
+    function statsBookKey(row) {
+        return row.id || ('local:' + (row.title || row.storage_path || 'doc'));
+    }
+
+    function selectBookStats(bookKey) {
+        statsSelectedBookId = bookKey || null;
+        renderHomeStats();
+        if (bookKey) {
+            var detail = document.getElementById('stats-book-detail');
+            if (detail) detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+
+    function formatStatDuration(totalSeconds) {
+        var sec = Math.max(0, Math.round(totalSeconds || 0));
+        if (sec < 60) return sec + ' s';
+        var min = Math.floor(sec / 60);
+        if (min < 60) return min + ' min';
+        var h = Math.floor(min / 60);
+        var rm = min % 60;
+        return h + ' h' + (rm ? ' ' + rm + ' min' : '');
+    }
+
+    function formatStatBytes(bytes) {
+        var n = Number(bytes) || 0;
+        if (!n) return '0 B';
+        if (n < 1024) return n + ' B';
+        if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+        return (n / 1048576).toFixed(1) + ' MB';
+    }
+
+    function mergeStatsRows(rows) {
+        var list = (rows || []).slice();
+        var open = currentOpenBookRow();
+        if (!open || !open.id) return list;
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].id === open.id) {
+                list[i] = Object.assign({}, list[i], open);
+                return list;
+            }
+        }
+        if (open.isOpen) list.unshift(open);
+        return list;
+    }
+
+    function computeLibraryStats(rows) {
+        rows = mergeStatsRows(rows);
+        var totalBooks = rows.length;
+        var completed = 0;
+        var inProgress = 0;
+        var totalPages = 0;
+        var pagesRead = 0;
+        var totalBytes = 0;
+        var activeWeek = 0;
+        var now = Date.now();
+        var weekMs = 7 * 24 * 60 * 60 * 1000;
+        var books = [];
+
+        for (var i = 0; i < rows.length; i++) {
+            var r = rows[i];
+            var np = r.num_pages || 0;
+            var lp = r.last_page || 1;
+            var pct = docProgressPct(r);
+            if (np > 0) {
+                totalPages += np;
+                pagesRead += Math.min(lp, np);
+                if (lp >= np) completed++;
+                else if (lp > 1) inProgress++;
+            } else {
+                pagesRead += lp;
+                if (lp > 1) inProgress++;
+            }
+            if (r.bytes) totalBytes += Number(r.bytes) || 0;
+            if (r.updated_at) {
+                var t = new Date(r.updated_at).getTime();
+                if (!isNaN(t) && (now - t) < weekMs) activeWeek++;
+            }
+            books.push({ row: r, pct: pct, lp: lp, np: np });
+        }
+
+        books.sort(function(a, b) {
+            var ta = a.row.updated_at ? new Date(a.row.updated_at).getTime() : 0;
+            var tb = b.row.updated_at ? new Date(b.row.updated_at).getTime() : 0;
+            return tb - ta;
+        });
+
+        var ttsSec = parseInt(safeStorage.getItem(LS_STATS_TTS_SECONDS) || '0', 10) || 0;
+        if (_statsTtsTickAt) ttsSec += Math.floor((Date.now() - _statsTtsTickAt) / 1000);
+
+        return {
+            totalBooks: totalBooks,
+            completed: completed,
+            inProgress: inProgress,
+            totalPages: totalPages,
+            pagesRead: pagesRead,
+            avgProgress: totalPages > 0 ? Math.round((pagesRead / totalPages) * 100) : 0,
+            totalBytes: totalBytes,
+            activeWeek: activeWeek,
+            books: books,
+            ttsSeconds: ttsSec
+        };
+    }
+
+    function renderHomeStats() {
+        var stats = computeLibraryStats(getNonTrashedRows(cloudLibraryRows));
+        var setText = function(id, text) {
+            var el = document.getElementById(id);
+            if (el) el.textContent = text;
+        };
+        setText('stats-books', String(stats.totalBooks));
+        setText('stats-pages', stats.totalPages
+            ? (stats.pagesRead.toLocaleString('pt-BR') + ' / ' + stats.totalPages.toLocaleString('pt-BR'))
+            : String(stats.pagesRead));
+        setText('stats-avg', stats.avgProgress + '%');
+        setText('stats-completed', String(stats.completed));
+        setText('stats-tts', formatStatDuration(stats.ttsSeconds));
+        setText('stats-active-week', String(stats.activeWeek));
+
+        var summary = document.getElementById('stats-summary');
+        if (summary) {
+            if (!stats.totalBooks) {
+                summary.textContent = 'Adicione livros na nuvem para acompanhar seu progresso.';
+            } else {
+                summary.textContent = stats.inProgress + ' em leitura · ' + formatStatBytes(stats.totalBytes) + ' na nuvem';
+            }
+        }
+
+        var fill = document.getElementById('stats-overall-fill');
+        var bar = document.getElementById('stats-overall-bar');
+        var meta = document.getElementById('stats-overall-meta');
+        if (fill) fill.style.width = stats.avgProgress + '%';
+        if (bar) {
+            bar.setAttribute('aria-valuenow', String(stats.avgProgress));
+            bar.setAttribute('aria-valuetext', stats.avgProgress + '% concluído');
+        }
+        if (meta) {
+            meta.textContent = stats.totalPages
+                ? (stats.pagesRead.toLocaleString('pt-BR') + ' de ' + stats.totalPages.toLocaleString('pt-BR') + ' páginas · ' + stats.avgProgress + '%')
+                : (stats.pagesRead.toLocaleString('pt-BR') + ' páginas lidas');
+        }
+
+        var list = document.getElementById('stats-books-list');
+        var empty = document.getElementById('stats-books-empty');
+        if (!list) return;
+        list.innerHTML = '';
+        if (!stats.books.length) {
+            if (empty) empty.classList.remove('hidden');
+            return;
+        }
+        if (empty) empty.classList.add('hidden');
+
+        stats.books.forEach(function(item) {
+            var row = item.row;
+            var bookKey = statsBookKey(row);
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'home-stats-book-item';
+            if (statsSelectedBookId === bookKey) btn.classList.add('is-selected');
+            btn.setAttribute('role', 'listitem');
+            btn.setAttribute('data-stats-book', bookKey);
+            var top = document.createElement('div');
+            top.className = 'home-stats-book-top';
+            var title = document.createElement('p');
+            title.className = 'home-stats-book-title';
+            title.textContent = row.title || row.id || 'Documento';
+            var pctEl = document.createElement('span');
+            pctEl.className = 'home-stats-book-pct';
+            pctEl.textContent = item.pct + '%';
+            top.appendChild(title);
+            top.appendChild(pctEl);
+            var metaEl = document.createElement('p');
+            metaEl.className = 'home-stats-book-meta';
+            if (item.np) metaEl.textContent = 'Página ' + item.lp + ' de ' + item.np;
+            else metaEl.textContent = 'Página ' + item.lp;
+            var barWrap = document.createElement('div');
+            barWrap.className = 'home-stats-book-bar';
+            var barFill = document.createElement('div');
+            barFill.className = 'home-stats-book-bar-fill';
+            barFill.style.width = item.pct + '%';
+            barWrap.appendChild(barFill);
+            btn.appendChild(top);
+            btn.appendChild(metaEl);
+            btn.appendChild(barWrap);
+            btn.addEventListener('click', function() {
+                selectBookStats(bookKey);
+            });
+            list.appendChild(btn);
+        });
+
+        renderBookStatsDetail(stats);
+    }
+
+    function renderBookStatsDetail(stats) {
+        var detail = document.getElementById('stats-book-detail');
+        if (!detail) return;
+        if (!statsSelectedBookId) {
+            detail.classList.add('hidden');
+            return;
+        }
+
+        var selected = null;
+        for (var i = 0; i < stats.books.length; i++) {
+            if (statsBookKey(stats.books[i].row) === statsSelectedBookId) {
+                selected = stats.books[i];
+                break;
+            }
+        }
+        if (!selected) {
+            statsSelectedBookId = null;
+            detail.classList.add('hidden');
+            return;
+        }
+
+        detail.classList.remove('hidden');
+        var row = selected.row;
+        var lp = selected.lp;
+        var np = selected.np;
+        var pct = selected.pct;
+        var status = bookStatusLabel(lp, np, pct);
+        var remaining = np > 0 ? Math.max(0, np - lp) : '—';
+
+        var titleEl = document.getElementById('stats-detail-title');
+        if (titleEl) titleEl.textContent = row.title || row.id || 'Documento';
+
+        var statusEl = document.getElementById('stats-detail-status');
+        if (statusEl) {
+            statusEl.textContent = status.text;
+            statusEl.className = 'home-stats-detail-badge' + (status.cls ? ' ' + status.cls : '');
+        }
+
+        var coverEl = document.getElementById('stats-detail-cover');
+        if (coverEl) {
+            coverEl.className = 'home-stats-detail-cover';
+            coverEl.textContent = '';
+            coverEl.style.backgroundImage = '';
+            hydrateBookCover(row, coverEl);
+        }
+
+        var fill = document.getElementById('stats-detail-fill');
+        var bar = document.getElementById('stats-detail-bar');
+        var progressMeta = document.getElementById('stats-detail-progress-meta');
+        if (fill) fill.style.width = pct + '%';
+        if (bar) {
+            bar.setAttribute('aria-valuenow', String(pct));
+            bar.setAttribute('aria-valuetext', pct + '% concluído');
+        }
+        if (progressMeta) {
+            progressMeta.textContent = np
+                ? (lp.toLocaleString('pt-BR') + ' de ' + np.toLocaleString('pt-BR') + ' páginas · ' + pct + '%')
+                : (lp.toLocaleString('pt-BR') + ' páginas lidas');
+        }
+
+        var setText = function(id, text) {
+            var el = document.getElementById(id);
+            if (el) el.textContent = text;
+        };
+        setText('stats-detail-pages', np ? (lp + ' / ' + np) : String(lp));
+        setText('stats-detail-remaining', typeof remaining === 'number' ? String(remaining) : remaining);
+        setText('stats-detail-tts', formatStatDuration(getBookTtsSeconds(row.id)));
+        setText('stats-detail-size', formatStatBytes(row.bytes));
+        setText('stats-detail-updated', formatStatDate(row.updated_at));
+        setText('stats-detail-created', formatStatDate(row.created_at));
+    }
+
     function pickFeaturedDoc(rows) {
+        rows = getNonTrashedRows(rows);
         if (!rows || !rows.length) return null;
         var lastId = safeStorage.getItem(LS_LAST_CLOUD_DOC);
         if (lastId) {
@@ -2230,20 +2718,520 @@ var safeStorage = (function() {
 
     function setHomeTab(tab) {
         homeActiveTab = tab || 'inicio';
-        ['inicio', 'biblioteca', 'conta'].forEach(function(t) {
+        ['inicio', 'biblioteca', 'lixeira', 'favoritos', 'anotacoes', 'estatisticas', 'conta'].forEach(function(t) {
             var panel = document.getElementById('home-tab-' + t);
             if (!panel) return;
             if (t === homeActiveTab) panel.classList.remove('hidden');
             else panel.classList.add('hidden');
         });
+        if (homeActiveTab === 'estatisticas') renderHomeStats();
+        if (homeActiveTab === 'favoritos') renderHomeFavoritesList();
+        if (homeActiveTab === 'anotacoes') renderHomeNotesList();
+        if (homeActiveTab === 'lixeira') renderHomeTrashList();
+        if (homeActiveTab === 'biblioteca') updateLibraryHeader();
         updateHomeNavActive();
+        updateSidebarLibraryActive();
+    }
+
+    function loadTrashIds() {
+        try {
+            var raw = safeStorage.getItem(LS_TRASH);
+            var list = raw ? JSON.parse(raw) : [];
+            return Array.isArray(list) ? list : [];
+        } catch (e) { return []; }
+    }
+
+    function saveTrashIds(ids) {
+        safeStorage.setItem(LS_TRASH, JSON.stringify(ids || []));
+    }
+
+    function isTrashed(id) {
+        if (!id) return false;
+        return loadTrashIds().indexOf(id) !== -1;
+    }
+
+    function removeFromTrash(id) {
+        if (!id) return;
+        saveTrashIds(loadTrashIds().filter(function(x) { return x !== id; }));
+    }
+
+    function getNonTrashedRows(rows) {
+        var trash = loadTrashIds();
+        return (rows || cloudLibraryRows || []).filter(function(r) {
+            return r.id && trash.indexOf(r.id) === -1;
+        });
+    }
+
+    function getTrashedRows() {
+        var trash = loadTrashIds();
+        if (!trash.length) return [];
+        return (cloudLibraryRows || []).filter(function(r) {
+            return r.id && trash.indexOf(r.id) !== -1;
+        });
+    }
+
+    function pruneStaleTrashIds() {
+        var trash = loadTrashIds();
+        var known = {};
+        for (var i = 0; i < cloudLibraryRows.length; i++) {
+            if (cloudLibraryRows[i].id) known[cloudLibraryRows[i].id] = true;
+        }
+        var pruned = trash.filter(function(id) { return known[id]; });
+        if (pruned.length !== trash.length) saveTrashIds(pruned);
+    }
+
+    function filterRowsForLibraryView(rows) {
+        rows = rows || [];
+        if (libraryViewMode === 'recent') {
+            var cutoff = Date.now() - LIBRARY_RECENT_DAYS * 24 * 60 * 60 * 1000;
+            return rows.filter(function(r) {
+                if (!r.updated_at) return false;
+                var t = new Date(r.updated_at).getTime();
+                return !isNaN(t) && t >= cutoff;
+            }).sort(function(a, b) {
+                return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+            });
+        }
+        if (libraryViewMode === 'cloud') {
+            return rows.filter(function(r) { return !!r.storage_path; });
+        }
+        return rows.slice();
+    }
+
+    function updateLibraryHeader() {
+        var titleEl = document.getElementById('home-library-title');
+        var subEl = document.getElementById('home-library-sub');
+        var titles = {
+            all: ['Biblioteca', 'Todos os PDFs guardados na nuvem'],
+            recent: ['Recentes', 'Lidos ou atualizados nos últimos ' + LIBRARY_RECENT_DAYS + ' dias'],
+            cloud: ['Na nuvem', 'PDFs sincronizados na sua conta']
+        };
+        var info = titles[libraryViewMode] || titles.all;
+        if (titleEl) titleEl.textContent = info[0];
+        if (subEl) subEl.textContent = info[1];
+    }
+
+    function setLibraryView(mode) {
+        libraryViewMode = mode || 'all';
+        openHomeView('biblioteca');
+        updateLibraryHeader();
+        applyHomeSearch(homeSearchQuery);
+    }
+
+    function updateSidebarLibraryActive() {
+        var onHome = !document.body.classList.contains('pdf-is-open');
+        var subs = document.querySelectorAll('.sidebar-sub-item');
+        for (var i = 0; i < subs.length; i++) {
+            var btn = subs[i];
+            var view = btn.getAttribute('data-library-view');
+            var nav = btn.getAttribute('data-home-nav');
+            var active = false;
+            if (onHome && nav === 'lixeira') active = homeActiveTab === 'lixeira';
+            else if (onHome && view) active = homeActiveTab === 'biblioteca' && libraryViewMode === view;
+            if (active) btn.classList.add('is-active');
+            else btn.classList.remove('is-active');
+        }
+    }
+
+    function moveToTrash(id, title) {
+        if (!id) return;
+        var label = title || id;
+        if (!confirm('Mover para o lixeiro?\n\n' + label + '\n\nPode restaurar depois em Lixeiro.')) return;
+        var ids = loadTrashIds();
+        if (ids.indexOf(id) === -1) ids.push(id);
+        saveTrashIds(ids);
+        removeFavoriteId(id);
+        applyHomeSearch(homeSearchQuery);
+        if (homeActiveTab === 'lixeira') renderHomeTrashList();
+        if (typeof showTtsToast === 'function') showTtsToast('Movido para o lixeiro');
+    }
+
+    function restoreFromTrash(id, title) {
+        if (!id) return;
+        removeFromTrash(id);
+        applyHomeSearch(homeSearchQuery);
+        renderHomeTrashList();
+        if (typeof showTtsToast === 'function') {
+            showTtsToast('Restaurado: ' + (title || 'livro'));
+        }
+    }
+
+    function renderHomeTrashList() {
+        var list = document.getElementById('home-trash-list');
+        if (!list) return;
+        list.innerHTML = '';
+        pruneStaleTrashIds();
+        var rows = getTrashedRows();
+        if (!rows.length) {
+            var empty = document.createElement('div');
+            empty.className = 'home-library-empty';
+            empty.textContent = 'O lixeiro está vazio.';
+            list.appendChild(empty);
+            return;
+        }
+        rows.forEach(function(row) {
+            var item = document.createElement('div');
+            item.className = 'home-library-item';
+            item.setAttribute('role', 'listitem');
+            var cover = document.createElement('span');
+            cover.className = 'home-library-cover';
+            hydrateBookCover(row, cover);
+            var info = document.createElement('div');
+            info.className = 'home-library-info';
+            var h = document.createElement('p');
+            h.className = 'home-library-title';
+            h.textContent = row.title || row.id;
+            var meta = document.createElement('p');
+            meta.className = 'home-library-meta';
+            meta.textContent = row.updated_at
+                ? ('Apagado · última leitura ' + formatStatDate(row.updated_at))
+                : 'Apagado da biblioteca';
+            info.appendChild(h);
+            info.appendChild(meta);
+            var restoreBtn = document.createElement('button');
+            restoreBtn.type = 'button';
+            restoreBtn.className = 'home-library-restore';
+            restoreBtn.textContent = 'Restaurar';
+            restoreBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                restoreFromTrash(row.id, row.title || row.id);
+            });
+            var delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'home-library-del';
+            delBtn.title = 'Apagar permanentemente';
+            delBtn.textContent = '🗑';
+            delBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                deleteCloudDocumentById(row.id, row.title || row.id, true);
+            });
+            item.appendChild(cover);
+            item.appendChild(info);
+            item.appendChild(restoreBtn);
+            item.appendChild(delBtn);
+            list.appendChild(item);
+        });
+    }
+
+    function loadFavorites() {
+        try {
+            var raw = safeStorage.getItem(LS_FAVORITES);
+            var list = raw ? JSON.parse(raw) : [];
+            return Array.isArray(list) ? list : [];
+        } catch (e) { return []; }
+    }
+
+    function saveFavorites(ids) {
+        safeStorage.setItem(LS_FAVORITES, JSON.stringify(ids || []));
+    }
+
+    function isFavorite(id) {
+        if (!id) return false;
+        return loadFavorites().indexOf(id) !== -1;
+    }
+
+    function toggleFavorite(id) {
+        if (!id) return false;
+        var favs = loadFavorites();
+        var idx = favs.indexOf(id);
+        var added = idx === -1;
+        if (added) favs.push(id);
+        else favs.splice(idx, 1);
+        saveFavorites(favs);
+        applyHomeSearch(homeSearchQuery);
+        if (homeActiveTab === 'favoritos') renderHomeFavoritesList();
+        if (typeof showTtsToast === 'function') {
+            showTtsToast(added ? 'Adicionado aos favoritos' : 'Removido dos favoritos');
+        }
+        return added;
+    }
+
+    function removeFavoriteId(id) {
+        if (!id) return;
+        var favs = loadFavorites().filter(function(x) { return x !== id; });
+        saveFavorites(favs);
+    }
+
+    function loadNotes() {
+        try {
+            var raw = safeStorage.getItem(LS_NOTES);
+            var list = raw ? JSON.parse(raw) : [];
+            return Array.isArray(list) ? list : [];
+        } catch (e) { return []; }
+    }
+
+    function saveNotes(notes) {
+        safeStorage.setItem(LS_NOTES, JSON.stringify(notes || []));
+    }
+
+    function removeNotesForDoc(docId) {
+        if (!docId) return;
+        saveNotes(loadNotes().filter(function(n) { return n.docId !== docId; }));
+        if (homeActiveTab === 'anotacoes') renderHomeNotesList();
+    }
+
+    function deleteNoteById(noteId) {
+        saveNotes(loadNotes().filter(function(n) { return n.id !== noteId; }));
+        if (homeActiveTab === 'anotacoes') renderHomeNotesList();
+    }
+
+    function upsertNote(note) {
+        var notes = loadNotes();
+        var idx = -1;
+        for (var i = 0; i < notes.length; i++) {
+            if (notes[i].id === note.id) { idx = i; break; }
+        }
+        if (idx === -1) notes.unshift(note);
+        else notes[idx] = note;
+        saveNotes(notes);
+        if (homeActiveTab === 'anotacoes') renderHomeNotesList();
+    }
+
+    function getCurrentDocForNotes() {
+        if (!pdfDoc) return null;
+        var docId = cloudDocumentId;
+        if (!docId) return null;
+        return {
+            docId: docId,
+            docTitle: currentBookTitle || lastOpenedFileName || 'Documento',
+            page: pageNum || currentPageNum || 1
+        };
+    }
+
+    function createFavBtn(row) {
+        var id = row && row.id;
+        if (!id) return null;
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'home-fav-btn' + (isFavorite(id) ? ' is-fav' : '');
+        btn.title = isFavorite(id) ? 'Remover dos favoritos' : 'Adicionar aos favoritos';
+        btn.setAttribute('aria-label', btn.title);
+        btn.innerHTML = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.4 5.8L21 10l-4.5 4.2L17.5 21 12 18l-5.5 3 1-6.8L3 10l6.6-1.2z"/></svg>';
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            toggleFavorite(id);
+            btn.classList.toggle('is-fav', isFavorite(id));
+            btn.title = isFavorite(id) ? 'Remover dos favoritos' : 'Adicionar aos favoritos';
+            btn.setAttribute('aria-label', btn.title);
+        });
+        return btn;
+    }
+
+    function renderHomeFavoritesList() {
+        var list = document.getElementById('home-favorites-list');
+        if (!list) return;
+        list.innerHTML = '';
+        var favIds = loadFavorites();
+        if (!favIds.length) {
+            var empty = document.createElement('div');
+            empty.className = 'home-library-empty';
+            empty.textContent = 'Nenhum favorito ainda. Toque na estrela na Biblioteca para marcar livros.';
+            list.appendChild(empty);
+            return;
+        }
+        var favRows = [];
+        for (var i = 0; i < cloudLibraryRows.length; i++) {
+            if (favIds.indexOf(cloudLibraryRows[i].id) !== -1 && !isTrashed(cloudLibraryRows[i].id)) {
+                favRows.push(cloudLibraryRows[i]);
+            }
+        }
+        if (!favRows.length) {
+            var stale = document.createElement('div');
+            stale.className = 'home-library-empty';
+            stale.textContent = 'Os favoritos guardados já não estão na nuvem.';
+            list.appendChild(stale);
+            return;
+        }
+        favRows.forEach(function(row) {
+            var item = document.createElement('div');
+            item.className = 'home-library-item';
+            item.setAttribute('role', 'listitem');
+            var cover = document.createElement('span');
+            cover.className = 'home-library-cover';
+            hydrateBookCover(row, cover);
+            var info = document.createElement('div');
+            info.className = 'home-library-info';
+            var h = document.createElement('p');
+            h.className = 'home-library-title';
+            h.textContent = row.title || row.id;
+            var meta = document.createElement('p');
+            meta.className = 'home-library-meta';
+            var lp = row.last_page || 1;
+            meta.textContent = row.num_pages ? ('Página ' + lp + ' de ' + row.num_pages) : ('Página ' + lp);
+            info.appendChild(h);
+            info.appendChild(meta);
+            var favBtn = createFavBtn(row);
+            var openBtn = document.createElement('button');
+            openBtn.type = 'button';
+            openBtn.className = 'home-library-open';
+            openBtn.textContent = 'Abrir';
+            openBtn.addEventListener('click', function() { openCloudDocumentById(row.id); });
+            item.appendChild(cover);
+            item.appendChild(info);
+            if (favBtn) item.appendChild(favBtn);
+            item.appendChild(openBtn);
+            list.appendChild(item);
+        });
+    }
+
+    function formatNoteDate(iso) {
+        if (!iso) return '';
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function renderHomeNotesList() {
+        var list = document.getElementById('home-notes-list');
+        var empty = document.getElementById('home-notes-empty');
+        if (!list) return;
+        list.innerHTML = '';
+        var notes = loadNotes().slice().sort(function(a, b) {
+            return new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
+        });
+        if (!notes.length) {
+            if (empty) empty.classList.remove('hidden');
+            return;
+        }
+        if (empty) empty.classList.add('hidden');
+        notes.forEach(function(note) {
+            var card = document.createElement('div');
+            card.className = 'home-note-item';
+            card.setAttribute('role', 'listitem');
+            var top = document.createElement('div');
+            top.className = 'home-note-top';
+            var book = document.createElement('p');
+            book.className = 'home-note-book';
+            book.textContent = note.docTitle || 'Documento';
+            var page = document.createElement('span');
+            page.className = 'home-note-page';
+            page.textContent = 'Pág. ' + (note.page || 1);
+            top.appendChild(book);
+            top.appendChild(page);
+            var text = document.createElement('p');
+            text.className = 'home-note-text';
+            text.textContent = note.text || '';
+            var date = document.createElement('p');
+            date.className = 'home-note-date';
+            date.textContent = formatNoteDate(note.updatedAt || note.createdAt);
+            var actions = document.createElement('div');
+            actions.className = 'home-note-actions';
+            var openBtn = document.createElement('button');
+            openBtn.type = 'button';
+            openBtn.className = 'home-note-action-btn';
+            openBtn.textContent = 'Abrir livro';
+            openBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (note.docId) openCloudDocumentById(note.docId, { jumpPage: note.page || 1 });
+            });
+            var editBtn = document.createElement('button');
+            editBtn.type = 'button';
+            editBtn.className = 'home-note-action-btn';
+            editBtn.textContent = 'Editar';
+            editBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                openNoteModal({ note: note });
+            });
+            var delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'home-note-action-btn home-note-action-btn--danger';
+            delBtn.textContent = 'Apagar';
+            delBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (confirm('Apagar esta anotação?')) deleteNoteById(note.id);
+            });
+            actions.appendChild(openBtn);
+            actions.appendChild(editBtn);
+            actions.appendChild(delBtn);
+            card.appendChild(top);
+            card.appendChild(text);
+            card.appendChild(date);
+            card.appendChild(actions);
+            card.addEventListener('click', function() {
+                if (note.docId) openCloudDocumentById(note.docId, { jumpPage: note.page || 1 });
+            });
+            list.appendChild(card);
+        });
+    }
+
+    function openNoteModal(opts) {
+        opts = opts || {};
+        var modal = document.getElementById('note-modal');
+        var meta = document.getElementById('note-modal-meta');
+        var textEl = document.getElementById('note-modal-text');
+        var titleEl = document.getElementById('note-modal-title');
+        if (!modal || !textEl) return;
+        var ctx = opts.note ? {
+            docId: opts.note.docId,
+            docTitle: opts.note.docTitle,
+            page: opts.note.page
+        } : getCurrentDocForNotes();
+        if (!ctx || !ctx.docId) {
+            if (typeof showTtsToast === 'function') showTtsToast('Abra um livro da nuvem para anotar.');
+            else if (typeof showNotification === 'function') showNotification('Abra um livro da nuvem para anotar.', true);
+            return;
+        }
+        _noteEditId = opts.note ? opts.note.id : null;
+        if (titleEl) titleEl.textContent = _noteEditId ? 'Editar anotação' : 'Nova anotação';
+        if (meta) meta.textContent = (ctx.docTitle || 'Documento') + ' · Página ' + (ctx.page || 1);
+        textEl.value = opts.note ? (opts.note.text || '') : '';
+        modal.classList.remove('hidden');
+        modal.setAttribute('aria-hidden', 'false');
+        setTimeout(function() { textEl.focus(); }, 50);
+    }
+
+    function closeNoteModal() {
+        var modal = document.getElementById('note-modal');
+        var textEl = document.getElementById('note-modal-text');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+        if (textEl) textEl.value = '';
+        _noteEditId = null;
+    }
+
+    function saveNoteFromModal() {
+        var textEl = document.getElementById('note-modal-text');
+        var meta = document.getElementById('note-modal-meta');
+        if (!textEl) return;
+        var text = String(textEl.value || '').trim();
+        if (!text) {
+            if (typeof showTtsToast === 'function') showTtsToast('Escreva algo na anotação.');
+            return;
+        }
+        var ctx = getCurrentDocForNotes();
+        var existing = null;
+        if (_noteEditId) {
+            var notes = loadNotes();
+            for (var i = 0; i < notes.length; i++) {
+                if (notes[i].id === _noteEditId) { existing = notes[i]; break; }
+            }
+        }
+        if (existing) {
+            upsertNote(Object.assign({}, existing, { text: text, updatedAt: new Date().toISOString() }));
+        } else {
+            if (!ctx || !ctx.docId) return;
+            upsertNote({
+                id: generateUUID(),
+                docId: ctx.docId,
+                docTitle: ctx.docTitle,
+                page: ctx.page,
+                text: text,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            });
+        }
+        closeNoteModal();
+        if (typeof showTtsToast === 'function') showTtsToast('Anotação guardada');
+        if (homeView || !pdfDoc) openHomeView('anotacoes');
     }
 
     /* Aba destacada só quando a Home está à vista — durante a leitura
        nenhuma aba fica ativa (o utilizador está no livro). */
     function updateHomeNavActive() {
         var onHome = !document.body.classList.contains('pdf-is-open');
-        var navItems = document.querySelectorAll('#home-bottom-nav .home-nav-item');
+        var navItems = document.querySelectorAll('.home-nav-item');
         for (var i = 0; i < navItems.length; i++) {
             var btn = navItems[i];
             var active = onHome && btn.getAttribute('data-home-nav') === homeActiveTab;
@@ -2280,6 +3268,7 @@ var safeStorage = (function() {
         syncChromeHiddenState();
         refreshHomeHero();
         updateHomeNavActive();
+        updateSidebarLibraryActive();
     }
 
     function openHomeView(tab) {
@@ -2326,63 +3315,143 @@ var safeStorage = (function() {
         if (metaEl) metaEl.textContent = np ? ('Página ' + lp + ' de ' + np) : ('Página ' + lp);
         var pct = docProgressPct(row);
         if (fillEl) fillEl.style.width = pct + '%';
-        if (pctEl) pctEl.textContent = pct + '%';
-        applyBookCoverEl(coverEl, title);
+        if (pctEl) pctEl.textContent = pct + '% concluído';
+        applyBookCoverEl(coverEl, title, row.id ? getCachedCover(row.id) : null);
+        if (row.id) {
+            coverEl.setAttribute('data-cover-doc', row.id);
+            hydrateBookCover(row, coverEl);
+        }
+    }
+
+    function normalizeSearchText(text) {
+        return String(text || '').trim().toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+
+    function rowMatchesSearch(row, qNorm) {
+        if (!qNorm) return true;
+        var title = normalizeSearchText(row.title || row.id || '');
+        return title.indexOf(qNorm) !== -1;
+    }
+
+    function filterRowsBySearch(rows) {
+        var q = normalizeSearchText(homeSearchQuery);
+        if (!q) return rows || [];
+        return (rows || []).filter(function(row) { return rowMatchesSearch(row, q); });
+    }
+
+    function applyHomeSearch(query) {
+        homeSearchQuery = query != null ? String(query) : homeSearchQuery;
+        var q = normalizeSearchText(homeSearchQuery);
+        var visible = getNonTrashedRows(cloudLibraryRows);
+        renderHomeCarousel(visible);
+        renderHomeLibraryList(visible);
+        var continueRow = document.getElementById('home-continue-row');
+        var continueEmpty = document.getElementById('home-continue-empty');
+        if (q) {
+            if (continueRow) continueRow.classList.add('hidden');
+            if (continueEmpty) continueEmpty.classList.add('hidden');
+        } else {
+            refreshHomeHero();
+        }
     }
 
     function renderHomeCarousel(rows) {
         var carousel = document.getElementById('home-books-carousel');
         if (!carousel) return;
         carousel.innerHTML = '';
-        (rows || []).forEach(function(row) {
+        var filtered = filterRowsBySearch(rows);
+        var q = normalizeSearchText(homeSearchQuery);
+        if (q && !filtered.length) {
+            var searchEmpty = document.createElement('div');
+            searchEmpty.className = 'home-search-empty';
+            searchEmpty.textContent = 'Nenhum livro encontrado para \u201C' + homeSearchQuery.trim() + '\u201D';
+            carousel.appendChild(searchEmpty);
+        }
+        filtered.forEach(function(row) {
             var btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'home-book-item';
             btn.setAttribute('role', 'listitem');
+            btn.setAttribute('data-book-title', (row.title || row.id || '').toLowerCase());
+            var coverWrap = document.createElement('div');
+            coverWrap.className = 'home-book-cover-wrap';
             var cover = document.createElement('span');
             cover.className = 'home-book-cover';
-            applyBookCoverEl(cover, row.title || row.id);
+            hydrateBookCover(row, cover);
+            var badge = document.createElement('span');
+            badge.className = 'home-pdf-badge';
+            badge.textContent = 'PDF';
+            coverWrap.appendChild(cover);
+            coverWrap.appendChild(badge);
             var label = document.createElement('span');
             label.className = 'home-book-title';
             label.textContent = row.title || row.id;
-            btn.appendChild(cover);
+            var meta = document.createElement('span');
+            meta.className = 'home-book-meta';
+            meta.textContent = row.num_pages ? (row.num_pages + ' páginas') : 'PDF';
+            var progress = document.createElement('div');
+            progress.className = 'home-book-progress';
+            var progressFill = document.createElement('div');
+            progressFill.className = 'home-book-progress-fill';
+            progressFill.style.width = docProgressPct(row) + '%';
+            progress.appendChild(progressFill);
+            btn.appendChild(coverWrap);
             btn.appendChild(label);
+            btn.appendChild(meta);
+            btn.appendChild(progress);
             btn.addEventListener('click', function() {
                 openCloudDocumentById(row.id);
             });
             carousel.appendChild(btn);
         });
-        var addBtn = document.createElement('button');
-        addBtn.type = 'button';
-        addBtn.className = 'home-book-add';
-        addBtn.innerHTML = '<span class="home-book-add-box">'
-            + '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>'
-            + '</span><span class="home-book-add-label">Adicionar novo livro</span>';
-        addBtn.addEventListener('click', function() {
-            var fi = document.getElementById('file-input');
-            if (fi) fi.click();
-        });
-        carousel.appendChild(addBtn);
+        if (!q) {
+            var addBtn = document.createElement('button');
+            addBtn.type = 'button';
+            addBtn.className = 'home-book-add';
+            addBtn.innerHTML = '<span class="home-book-add-box">'
+                + '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>'
+                + '</span><span class="home-book-add-label">Adicionar novo livro</span>';
+            addBtn.addEventListener('click', function() {
+                var fi = document.getElementById('file-input');
+                if (fi) fi.click();
+            });
+            carousel.appendChild(addBtn);
+        }
     }
 
     function renderHomeLibraryList(rows) {
         var list = document.getElementById('home-library-list');
         if (!list) return;
         list.innerHTML = '';
-        if (!rows || !rows.length) {
+        rows = filterRowsForLibraryView(rows || []);
+        if (!rows.length) {
             var empty = document.createElement('div');
             empty.className = 'home-library-empty';
-            empty.textContent = 'Nenhum PDF na nuvem.';
+            if (libraryViewMode === 'recent') {
+                empty.textContent = 'Nenhum livro lido nos últimos ' + LIBRARY_RECENT_DAYS + ' dias.';
+            } else {
+                empty.textContent = 'Nenhum PDF na nuvem.';
+            }
             list.appendChild(empty);
             return;
         }
-        rows.forEach(function(row) {
+        var filtered = filterRowsBySearch(rows);
+        var q = normalizeSearchText(homeSearchQuery);
+        if (q && !filtered.length) {
+            var searchEmptyLib = document.createElement('div');
+            searchEmptyLib.className = 'home-library-empty';
+            searchEmptyLib.textContent = 'Nenhum livro encontrado para \u201C' + homeSearchQuery.trim() + '\u201D';
+            list.appendChild(searchEmptyLib);
+            return;
+        }
+        filtered.forEach(function(row) {
             var item = document.createElement('div');
             item.className = 'home-library-item';
             item.setAttribute('role', 'listitem');
             var cover = document.createElement('span');
             cover.className = 'home-library-cover';
-            applyBookCoverEl(cover, row.title || row.id);
+            hydrateBookCover(row, cover);
             var info = document.createElement('div');
             info.className = 'home-library-info';
             var h = document.createElement('p');
@@ -2404,14 +3473,16 @@ var safeStorage = (function() {
             var delBtn = document.createElement('button');
             delBtn.type = 'button';
             delBtn.className = 'home-library-del';
-            delBtn.title = 'Apagar da nuvem';
+            delBtn.title = 'Mover para o lixeiro';
             delBtn.textContent = '🗑';
             delBtn.addEventListener('click', function(e) {
                 e.stopPropagation();
-                deleteCloudDocumentById(row.id, row.title || row.id);
+                moveToTrash(row.id, row.title || row.id);
             });
+            var favBtn = createFavBtn(row);
             item.appendChild(cover);
             item.appendChild(info);
+            if (favBtn) item.appendChild(favBtn);
             item.appendChild(openBtn);
             item.appendChild(delBtn);
             list.appendChild(item);
@@ -2434,15 +3505,33 @@ var safeStorage = (function() {
         var title = row.title || row.id;
         if (titleEl) titleEl.textContent = title;
         if (fillEl) fillEl.style.width = docProgressPct(row) + '%';
-        applyBookCoverEl(thumbEl, title);
+        applyBookCoverEl(thumbEl, title, row.id ? getCachedCover(row.id) : null);
+        if (row.id) hydrateBookCover(row, thumbEl);
+        var pageEl = document.getElementById('home-mini-page');
+        var lp = row.last_page || 1;
+        if (pageEl) pageEl.textContent = row.num_pages ? ('Página ' + lp + ' de ' + row.num_pages) : ('Página ' + lp);
         setMiniTtsIcon(!!(row.isOpen && isReading));
+        updatePlayerSpeedLabel();
+    }
+
+    function updatePlayerSpeedLabel() {
+        var el = document.getElementById('player-speed-label');
+        var rate = document.getElementById('rate-range');
+        if (el && rate) el.textContent = parseFloat(rate.value || '1').toFixed(1) + '×';
+    }
+
+    function filterHomeBooks(query) {
+        applyHomeSearch(query);
     }
 
     function renderHomeFromCloudLibrary(rows) {
         cloudLibraryRows = rows || [];
-        renderHomeCarousel(cloudLibraryRows);
-        renderHomeLibraryList(cloudLibraryRows);
-        refreshHomeHero();
+        pruneStaleTrashIds();
+        applyHomeSearch(homeSearchQuery);
+        if (homeActiveTab === 'estatisticas') renderHomeStats();
+        if (homeActiveTab === 'favoritos') renderHomeFavoritesList();
+        if (homeActiveTab === 'anotacoes') renderHomeNotesList();
+        if (homeActiveTab === 'lixeira') renderHomeTrashList();
     }
 
     /* O livro aberto tem prioridade no "Continue ouvindo" e no mini-player,
@@ -2531,7 +3620,7 @@ var safeStorage = (function() {
         var miniThumb = document.getElementById('home-mini-thumb');
         if (miniInfo) miniInfo.addEventListener('click', viewFeaturedDocument);
         if (miniThumb) miniThumb.addEventListener('click', viewFeaturedDocument);
-        var navItems = document.querySelectorAll('#home-bottom-nav .home-nav-item');
+        var navItems = document.querySelectorAll('.home-nav-item');
         for (var i = 0; i < navItems.length; i++) {
             (function(btn) {
                 btn.addEventListener('click', function() {
@@ -2539,6 +3628,88 @@ var safeStorage = (function() {
                 });
             })(navItems[i]);
         }
+        var sidebarSubs = document.querySelectorAll('.sidebar-sub-item[data-library-view]');
+        for (var s = 0; s < sidebarSubs.length; s++) {
+            (function(btn) {
+                btn.addEventListener('click', function() {
+                    setLibraryView(btn.getAttribute('data-library-view'));
+                });
+            })(sidebarSubs[s]);
+        }
+        var sidebarTrash = document.querySelectorAll('.sidebar-sub-item[data-home-nav="lixeira"]');
+        for (var t = 0; t < sidebarTrash.length; t++) {
+            (function(btn) {
+                btn.addEventListener('click', function() {
+                    openHomeView('lixeira');
+                });
+            })(sidebarTrash[t]);
+        }
+        var sidebarActions = document.querySelectorAll('[data-sidebar-action]');
+        for (var a = 0; a < sidebarActions.length; a++) {
+            (function(btn) {
+                btn.addEventListener('click', function() {
+                    var action = btn.getAttribute('data-sidebar-action');
+                    if (action === 'estatisticas') openHomeView('estatisticas');
+                    else if (typeof showTtsToast === 'function') showTtsToast('Em breve');
+                });
+            })(sidebarActions[a]);
+        }
+        var statsBtn = document.getElementById('home-btn-stats');
+        if (statsBtn) statsBtn.addEventListener('click', function() { openHomeView('estatisticas'); });
+        var statsBack = document.getElementById('stats-book-back');
+        if (statsBack) statsBack.addEventListener('click', function() { selectBookStats(null); });
+        var noteFloat = document.getElementById('btn-note-float');
+        if (noteFloat) noteFloat.addEventListener('click', function() { openNoteModal(); });
+        var noteCancel = document.getElementById('note-modal-cancel');
+        if (noteCancel) noteCancel.addEventListener('click', closeNoteModal);
+        var noteSave = document.getElementById('note-modal-save');
+        if (noteSave) noteSave.addEventListener('click', saveNoteFromModal);
+        var noteModal = document.getElementById('note-modal');
+        if (noteModal) noteModal.addEventListener('click', function(e) {
+            if (e.target === noteModal) closeNoteModal();
+        });
+        var topbarAdd = document.getElementById('topbar-add-pdf');
+        if (topbarAdd) topbarAdd.addEventListener('click', openLocalPdf);
+        var searchInput = document.getElementById('home-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', function() { filterHomeBooks(searchInput.value); });
+            searchInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    searchInput.value = '';
+                    filterHomeBooks('');
+                    searchInput.blur();
+                    return;
+                }
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    var q = normalizeSearchText(searchInput.value);
+                    if (!q) return;
+                    var matches = filterRowsBySearch(cloudLibraryRows);
+                    if (matches.length) openHomeView('biblioteca');
+                }
+            });
+        }
+        var carousel = document.getElementById('home-books-carousel');
+        var prevBtn = document.getElementById('home-books-prev');
+        var nextBtn = document.getElementById('home-books-next');
+        if (carousel && prevBtn) prevBtn.addEventListener('click', function() { carousel.scrollBy({ left: -300, behavior: 'smooth' }); });
+        if (carousel && nextBtn) nextBtn.addEventListener('click', function() { carousel.scrollBy({ left: 300, behavior: 'smooth' }); });
+        var playerPrev = document.getElementById('player-prev');
+        var playerNext = document.getElementById('player-next');
+        var playerMenu = document.getElementById('player-menu');
+        if (playerPrev) playerPrev.addEventListener('click', function() { if (pdfDoc) changePage(-1); });
+        if (playerNext) playerNext.addEventListener('click', function() { if (pdfDoc) changePage(1); });
+        if (playerMenu) playerMenu.addEventListener('click', function() {
+            if (typeof window._readEdyOpenSettings === 'function') window._readEdyOpenSettings();
+        });
+        var playerVol = document.getElementById('player-volume');
+        if (playerVol) playerVol.addEventListener('input', function() {
+            if (window.speechSynthesis && typeof speechSynthesis.volume !== 'undefined') {
+                /* Web Speech API volume is per-utterance; guardamos preferência local */
+                safeStorage.setItem('readera_volume', playerVol.value);
+            }
+        });
         var backBtn = document.getElementById('btn-reader-back');
         if (backBtn) backBtn.addEventListener('click', function() { openHomeView('inicio'); });
         var headerAccount = document.getElementById('home-header-account');
@@ -2547,11 +3718,7 @@ var safeStorage = (function() {
         if (settingsBtn) settingsBtn.addEventListener('click', function() {
             if (typeof window._readEdyOpenSettings === 'function') window._readEdyOpenSettings();
         });
-        var themeBtn = document.getElementById('home-btn-theme');
-        if (themeBtn) themeBtn.addEventListener('click', function() {
-            var mainTheme = document.getElementById('btn-theme');
-            if (mainTheme) mainTheme.click();
-        });
+        wireThemeButtons();
         setHomeTab('inicio');
         renderHomeFromCloudLibrary([]);
         applyShellState();
@@ -2566,7 +3733,7 @@ var safeStorage = (function() {
         var panel = document.getElementById('cloud-library-panel');
         if (!panel) return;
         panel.innerHTML = '';
-        var list = rows || [];
+        var list = getNonTrashedRows(rows || []);
         cloudLibraryCount = list.length;
         if (!list.length) {
             var empty = document.createElement('div');
@@ -2594,12 +3761,12 @@ var safeStorage = (function() {
             var delBtn = document.createElement('button');
             delBtn.type = 'button';
             delBtn.className = 'cloud-library-item-del';
-            delBtn.title = 'Apagar da nuvem';
-            delBtn.setAttribute('aria-label', 'Apagar ' + (row.title || row.id) + ' da nuvem');
+            delBtn.title = 'Mover para o lixeiro';
+            delBtn.setAttribute('aria-label', 'Mover ' + (row.title || row.id) + ' para o lixeiro');
             delBtn.textContent = '🗑';
             delBtn.addEventListener('click', function(e) {
                 e.stopPropagation();
-                deleteCloudDocumentById(row.id, row.title || row.id);
+                moveToTrash(row.id, row.title || row.id);
             });
 
             item.appendChild(openBtn);
@@ -2735,7 +3902,7 @@ var safeStorage = (function() {
     function refreshCloudLibrary() {
         if (!readeraSb) return Promise.resolve();
         return readeraSb.from('documents')
-            .select('id, title, last_page, num_pages, updated_at')
+            .select('id, title, storage_path, last_page, num_pages, bytes, created_at, updated_at')
             .order('updated_at', { ascending: false })
             .limit(50)
             .then(function(result) {
@@ -2813,12 +3980,19 @@ var safeStorage = (function() {
 
     function openCloudDocumentById(id, opts) {
         if (!id || !readeraSb) return;
-        var keepHome = !!(opts && opts.keepHome);
-        var autoPlay = !!(opts && opts.autoPlay);
+        opts = opts || {};
+        var keepHome = !!opts.keepHome;
+        var autoPlay = !!opts.autoPlay;
+        var jumpPage = opts.jumpPage ? (opts.jumpPage | 0) : null;
         closeCloudLibraryPanel();
         /* Já é o livro carregado: não descarrega de novo */
         if (pdfDoc && cloudDocumentId === id) {
-            if (autoPlay) toggleTTS();
+            if (jumpPage && jumpPage > 0 && jumpPage !== pageNum) {
+                pageNum = jumpPage;
+                currentPageNum = jumpPage;
+                renderPage(pageNum);
+                openReaderView();
+            } else if (autoPlay) toggleTTS();
             else if (!keepHome) openReaderView();
             return;
         }
@@ -2839,7 +4013,8 @@ var safeStorage = (function() {
                 if (gen !== cloudLoadGen) return;
                 var row = result.data, error = result.error;
                 if (error || !row) throw error || new Error('Documento não encontrado');
-                return openCloudDocumentFromRow(row, true, gen, keepHome).then(function() {
+                if (jumpPage) row = Object.assign({}, row, { last_page: jumpPage });
+                return openCloudDocumentFromRow(row, true, gen, keepHome && !jumpPage).then(function() {
                     if (gen !== cloudLoadGen) return;
                     if (autoPlay) startTtsWhenReady(0);
                 });
@@ -2953,12 +4128,18 @@ var safeStorage = (function() {
             if (pdfDoc) stopTTS({ resetBookmark: true });
         }
         if (safeStorage.getItem(LS_LAST_CLOUD_DOC) === id) persistLastCloudDocId(null);
+        removeFavoriteId(id);
+        removeNotesForDoc(id);
+        removeFromTrash(id);
     }
 
-    function deleteCloudDocumentById(id, title) {
+    function deleteCloudDocumentById(id, title, fromTrash) {
         if (!readeraSb || !id) return;
         var label = title || id;
-        if (!confirm('Remover da nuvem?\n\n' + label + '\n\nO ficheiro no Storage e o registo na base serão apagados.')) return;
+        var msg = fromTrash
+            ? ('Apagar permanentemente?\n\n' + label + '\n\nEsta ação não pode ser desfeita.')
+            : ('Remover da nuvem?\n\n' + label + '\n\nO ficheiro no Storage e o registo na base serão apagados.');
+        if (!confirm(msg)) return;
         closeCloudLibraryPanel();
         setAppLoading(true, 'A apagar da nuvem…');
         readeraSb.from('documents').select('storage_path').eq('id', id).single()
@@ -2971,6 +4152,7 @@ var safeStorage = (function() {
             }).then(function(r) {
                 if (r.error) throw r.error;
                 clearCloudLinkForDocument(id);
+                removeFromTrash(id);
                 return refreshCloudLibrary();
             }).then(function() {
                 updateCloudChrome();
@@ -3078,6 +4260,7 @@ var safeStorage = (function() {
             warmUpTtsProxy();
             updateCloudChrome();
             if (cloudDocumentId) persistLastCloudDocId(cloudDocumentId);
+            if (cloudDocumentId && pdfCacheBytes) ensureCoverForBytes(cloudDocumentId, pdfCacheBytes);
             if (!cloudDocumentId && pdfCacheBytes && readeraSb && safeStorage.getItem(LS_AUTO_CLOUD) !== '0') {
                 attemptAutoCloudSync();
             }
