@@ -21,7 +21,9 @@
     </script>
     <!-- config.js = override local (não versionado, gitignored) -->
     <script src="config.js" onerror="void 0"></script>
-    <link rel="stylesheet" href="./css/app.css">
+    <!-- ?v= força o navegador/CDN a buscar a versão nova a cada deploy.
+         Ao alterar css/app.css ou js/app.js, incremente este valor. -->
+    <link rel="stylesheet" href="./css/app.css?v=20260822d">
 </head>
 <body>
 
@@ -43,7 +45,9 @@
 <header>
     <div class="header-home-bar" aria-label="Início ReadEdy">
         <span class="home-logo">ReadEdy</span>
-        <button type="button" class="home-avatar-btn" id="home-header-account" title="Conta" aria-label="Conta">👤</button>
+        <button type="button" class="home-avatar-btn" id="home-header-account" title="Conta" aria-label="Conta">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.5 3.1-5.6 7-5.6s7 2.1 7 5.6"/></svg>
+        </button>
     </div>
     <div class="header-reader-bar">
         <button type="button" class="reader-back-btn" id="btn-reader-back" title="Voltar ao início" aria-label="Voltar ao início">←</button>
@@ -146,31 +150,33 @@
 <main id="viewer-container">
     <div id="welcome" class="home-screen">
         <div class="home-tab-panel" id="home-tab-inicio" data-home-tab="inicio">
-            <section class="home-continue" id="home-continue-section" aria-label="Continue ouvindo">
-                <h2 class="home-section-label">Continue ouvindo</h2>
-                <div class="home-continue-card hidden" id="home-continue-card">
+            <section class="home-continue-card" id="home-continue-card" aria-label="Continue ouvindo">
+                <h2 class="home-card-label">Continue ouvindo</h2>
+                <div class="home-continue-row hidden" id="home-continue-row">
                     <div class="home-continue-cover" id="home-continue-cover" aria-hidden="true"></div>
                     <div class="home-continue-body">
                         <h3 class="home-continue-title" id="home-continue-title"></h3>
                         <p class="home-continue-meta" id="home-continue-meta"></p>
-                        <div class="home-continue-progress-wrap">
-                            <div class="home-continue-progress-track"><div class="home-continue-progress-fill" id="home-continue-progress-fill"></div></div>
-                            <span class="home-continue-pct" id="home-continue-pct"></span>
-                        </div>
-                        <button type="button" class="home-continue-play" id="home-continue-play" title="Continuar leitura" aria-label="Continuar leitura">▶</button>
+                        <div class="home-continue-progress-track"><div class="home-continue-progress-fill" id="home-continue-progress-fill"></div></div>
+                        <span class="home-continue-pct" id="home-continue-pct"></span>
                     </div>
+                    <button type="button" class="home-continue-play" id="home-continue-play" title="Continuar leitura" aria-label="Continuar leitura">
+                        <svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                    </button>
                 </div>
                 <div class="home-continue-empty" id="home-continue-empty">
-                    <p>Nenhum livro na nuvem ainda.</p>
+                    <p>Nenhum livro por aqui ainda.</p>
                     <p class="home-continue-empty-hint">Abra um PDF ou adicione um livro abaixo.</p>
                 </div>
             </section>
             <div class="home-actions">
                 <button type="button" class="home-btn home-btn-outline" id="home-btn-open-pdf">
-                    <span class="home-btn-icon" aria-hidden="true">📄</span> Abrir PDF
+                    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+                    Abrir PDF
                 </button>
                 <button type="button" class="home-btn home-btn-filled" id="home-btn-cloud">
-                    <span class="home-btn-icon" aria-hidden="true">☁️</span> Na nuvem
+                    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H7a4 4 0 0 1-.5-7.97A5.5 5.5 0 0 1 17.4 10a4.5 4.5 0 0 1 .1 9z"/></svg>
+                    Na nuvem
                 </button>
             </div>
             <section class="home-books" aria-label="Meus livros">
@@ -181,7 +187,7 @@
                 <div class="home-books-scroll" id="home-books-carousel" role="list"></div>
             </section>
             <section class="home-pro-banner" aria-label="ReadEdy Pro">
-                <span class="home-pro-icon" aria-hidden="true">🏅</span>
+                <svg class="home-pro-icon ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="5"/><path d="M12 6.6l.9 1.9 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2L9.1 8.8l2-.3z"/><path d="M8.5 13.5L7 22l5-2.6L17 22l-1.5-8.5"/></svg>
                 <div class="home-pro-text">
                     <strong>Experimente ReadEdy Pro grátis</strong>
                     <span>TTS ilimitado · Nuvem · OCR</span>
@@ -198,17 +204,28 @@
         </div>
         <div class="home-tab-panel hidden" id="home-tab-conta" data-home-tab="conta">
             <div class="home-account-card">
-                <div class="home-account-avatar" aria-hidden="true">👤</div>
+                <div class="home-account-avatar" aria-hidden="true">
+                    <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.5 3.1-5.6 7-5.6s7 2.1 7 5.6"/></svg>
+                </div>
                 <h2 class="home-account-name">ReadEdy</h2>
                 <p class="home-account-sub" id="home-account-cloud-status">Nuvem a ligar…</p>
             </div>
             <div class="home-account-actions">
-                <button type="button" class="home-account-btn" id="home-btn-settings">⚙️ Configurações</button>
-                <button type="button" class="home-account-btn" id="home-btn-theme">🌗 Inverter cores do PDF</button>
-                <button type="button" class="home-account-btn" id="home-btn-open-pdf-account">📄 Abrir PDF local</button>
+                <button type="button" class="home-account-btn" id="home-btn-settings">
+                    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.1a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 1 1 0 4z"/></svg>
+                    Configurações
+                </button>
+                <button type="button" class="home-account-btn" id="home-btn-theme">
+                    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg>
+                    Inverter cores do PDF
+                </button>
+                <button type="button" class="home-account-btn" id="home-btn-open-pdf-account">
+                    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+                    Abrir PDF local
+                </button>
             </div>
             <section class="home-pro-banner home-pro-banner--compact" aria-label="ReadEdy Pro">
-                <span class="home-pro-icon" aria-hidden="true">🏅</span>
+                <svg class="home-pro-icon ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="5"/><path d="M8.5 13.5L7 22l5-2.6L17 22l-1.5-8.5"/></svg>
                 <div class="home-pro-text">
                     <strong>ReadEdy Pro</strong>
                     <span>TTS ilimitado · Nuvem · OCR</span>
@@ -243,20 +260,22 @@
         <span class="home-mini-title" id="home-mini-title">—</span>
         <span class="home-mini-progress-track"><span class="home-mini-progress-fill" id="home-mini-progress-fill"></span></span>
     </button>
-    <button type="button" class="home-mini-tts" id="home-mini-tts" title="Ouvir" aria-label="Ouvir">▶</button>
+    <button type="button" class="home-mini-tts" id="home-mini-tts" title="Ouvir" aria-label="Ouvir">
+        <svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+    </button>
 </div>
 
 <nav id="home-bottom-nav" class="home-bottom-nav" aria-label="Navegação principal">
     <button type="button" class="home-nav-item is-active" data-home-nav="inicio" aria-current="page">
-        <span class="home-nav-icon" aria-hidden="true">🏠</span>
+        <svg class="home-nav-icon ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/></svg>
         <span class="home-nav-label">Início</span>
     </button>
     <button type="button" class="home-nav-item" data-home-nav="biblioteca">
-        <span class="home-nav-icon" aria-hidden="true">📚</span>
+        <svg class="home-nav-icon ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h4v16H4zM10 4h4v16h-4z"/><path d="M17.2 4.6l3.3.9-3 15.1-3.3-.9z"/></svg>
         <span class="home-nav-label">Biblioteca</span>
     </button>
     <button type="button" class="home-nav-item" data-home-nav="conta">
-        <span class="home-nav-icon" aria-hidden="true">👤</span>
+        <svg class="home-nav-icon ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.5 3.1-5.6 7-5.6s7 2.1 7 5.6"/></svg>
         <span class="home-nav-label">Conta</span>
     </button>
 </nav>
@@ -277,6 +296,6 @@
 
 </div>
 
-<script src="./js/app.js"></script>
+<script src="./js/app.js?v=20260822d"></script>
 </body>
 </html>

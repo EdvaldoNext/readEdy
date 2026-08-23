@@ -2067,13 +2067,7 @@ var safeStorage = (function() {
                 btn.innerHTML = '<span class="tts-speaker" aria-hidden="true">🔊</span><span class="tts-badge-x" aria-hidden="true">✕</span>';
             }
         });
-        var miniTts = document.getElementById('home-mini-tts');
-        if (miniTts) {
-            var playing = state === 'playing';
-            miniTts.textContent = playing ? '⏸' : '▶';
-            miniTts.title = playing ? 'Parar leitura' : 'Ouvir';
-            miniTts.setAttribute('aria-label', miniTts.title);
-        }
+        setMiniTtsIcon(state === 'playing');
     }
 
     function updateTtsButtonLabel() {
@@ -2176,6 +2170,17 @@ var safeStorage = (function() {
 
     function closeCloudLibraryPanel() {
         setCloudLibraryPanelOpen(false);
+    }
+
+    var MINI_ICON_PLAY  = '<svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+    var MINI_ICON_PAUSE = '<svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.4v14H7zM13.6 5H17v14h-3.4z"/></svg>';
+
+    function setMiniTtsIcon(playing) {
+        var el = document.getElementById('home-mini-tts');
+        if (!el) return;
+        el.innerHTML = playing ? MINI_ICON_PAUSE : MINI_ICON_PLAY;
+        el.title = playing ? 'Parar leitura' : 'Ouvir';
+        el.setAttribute('aria-label', el.title);
     }
 
     function bookCoverInitial(title) {
@@ -2292,15 +2297,15 @@ var safeStorage = (function() {
     }
 
     function updateHomeContinue(row) {
-        var card = document.getElementById('home-continue-card');
+        var rowEl = document.getElementById('home-continue-row');
         var empty = document.getElementById('home-continue-empty');
-        if (!card || !empty) return;
+        if (!rowEl || !empty) return;
         if (!row) {
-            card.classList.add('hidden');
+            rowEl.classList.add('hidden');
             empty.classList.remove('hidden');
             return;
         }
-        card.classList.remove('hidden');
+        rowEl.classList.remove('hidden');
         empty.classList.add('hidden');
         var title = row.title || row.id;
         var titleEl = document.getElementById('home-continue-title');
@@ -2343,7 +2348,9 @@ var safeStorage = (function() {
         var addBtn = document.createElement('button');
         addBtn.type = 'button';
         addBtn.className = 'home-book-add';
-        addBtn.innerHTML = '<span class="home-book-add-box">+</span><span class="home-book-add-label">Adicionar novo livro</span>';
+        addBtn.innerHTML = '<span class="home-book-add-box">'
+            + '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>'
+            + '</span><span class="home-book-add-label">Adicionar novo livro</span>';
         addBtn.addEventListener('click', function() {
             var fi = document.getElementById('file-input');
             if (fi) fi.click();
@@ -2417,17 +2424,11 @@ var safeStorage = (function() {
         var titleEl = document.getElementById('home-mini-title');
         var fillEl = document.getElementById('home-mini-progress-fill');
         var thumbEl = document.getElementById('home-mini-thumb');
-        var ttsEl = document.getElementById('home-mini-tts');
         var title = row.title || row.id;
         if (titleEl) titleEl.textContent = title;
         if (fillEl) fillEl.style.width = docProgressPct(row) + '%';
         applyBookCoverEl(thumbEl, title);
-        if (ttsEl) {
-            var playing = row.isOpen && isReading;
-            ttsEl.textContent = playing ? '⏸' : '▶';
-            ttsEl.title = playing ? 'Parar leitura' : 'Ouvir';
-            ttsEl.setAttribute('aria-label', ttsEl.title);
-        }
+        setMiniTtsIcon(!!(row.isOpen && isReading));
     }
 
     function renderHomeFromCloudLibrary(rows) {
