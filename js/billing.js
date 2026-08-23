@@ -40,6 +40,7 @@ window.ReadEdyBilling = (function() {
     }
 
     function isActive() {
+        if (window.ReadEdyAuth && ReadEdyAuth.isAdmin && ReadEdyAuth.isAdmin()) return true;
         if (!status) return false;
         if (status.status !== 'active' && status.status !== 'past_due') return false;
         var end = status.current_period_end;
@@ -49,6 +50,7 @@ window.ReadEdyBilling = (function() {
     }
 
     function planLabel() {
+        if (window.ReadEdyAuth && ReadEdyAuth.isAdmin && ReadEdyAuth.isAdmin()) return 'Vitalício';
         if (!status) return 'Sem plano';
         if (status.plan && status.plan.name) return status.plan.name;
         return status.status || 'Sem plano';

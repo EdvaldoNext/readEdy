@@ -23,7 +23,7 @@
     <script src="config.js"></script>
     <!-- ?v= força o navegador/CDN a buscar a versão nova a cada deploy.
          Ao alterar css/app.css ou js/app.js, incremente este valor. -->
-    <link rel="stylesheet" href="./css/app.css?v=20260824c">
+    <link rel="stylesheet" href="./css/app.css?v=20260824d">
 </head>
 <body>
 
@@ -468,10 +468,10 @@
                         <h3 class="home-plan-name">Básico</h3>
                         <p class="home-plan-price">R$ 9,99<span>/mês</span></p>
                         <ul class="home-plan-features">
-                            <li>Até 3 PDFs na nuvem</li>
-                            <li>45 MB de armazenamento</li>
-                            <li>TTS na nuvem e OCR</li>
-                            <li>PIX ou cartão · 30 dias</li>
+                            <li>Leia no carro, celular, notebook ou TV</li>
+                            <li>Fácil, leve e rápido de usar</li>
+                            <li>3 PDFs sempre à mão na nuvem</li>
+                            <li>Ouça o livro em qualquer lugar</li>
                         </ul>
                         <button type="button" class="home-account-btn home-auth-btn-primary" id="home-btn-plan-basic" data-plan="basic_monthly">Pagar Básico</button>
                     </article>
@@ -479,18 +479,33 @@
                         <h3 class="home-plan-name">Premium</h3>
                         <p class="home-plan-price">R$ 19,99<span>/mês</span></p>
                         <ul class="home-plan-features">
-                            <li>Até 10 PDFs na nuvem</li>
-                            <li>120 MB de armazenamento</li>
-                            <li>TTS na nuvem e OCR</li>
-                            <li>PIX ou cartão · 30 dias</li>
+                            <li>Leia em qualquer tela, a qualquer hora</li>
+                            <li>Fácil, leve e feito pro dia a dia</li>
+                            <li>Até 10 PDFs sempre com você</li>
+                            <li>Ouça no carro, no celular e na TV</li>
                         </ul>
-                        <button type="button" class="home-account-btn" id="home-btn-plan-premium" data-plan="premium_monthly">Pagar Premium</button>
+                        <button type="button" class="home-account-btn home-auth-btn-primary" id="home-btn-plan-premium" data-plan="premium_monthly">Pagar Premium</button>
                     </article>
                 </div>
+                <button type="button" class="home-account-btn hidden" id="home-btn-change-password-guest">Alterar senha</button>
                 <button type="button" class="home-account-btn hidden" id="home-btn-signout-logged">Sair da conta</button>
-                <form id="home-auth-email-form" class="home-auth-email-form hidden">
-                    <input type="email" id="home-auth-email-input" class="home-auth-email-input" placeholder="Seu e-mail" required>
-                    <button type="submit" class="home-account-btn">Enviar link de recuperação</button>
+                <form id="home-auth-email-form" class="home-signup-form hidden">
+                    <label class="auth-field-label" for="home-auth-email-input">E-mail para recuperação</label>
+                    <input type="email" id="home-auth-email-input" class="home-auth-email-input" placeholder="seu@email.com" autocomplete="email" required>
+                    <button type="submit" class="home-account-btn home-auth-btn-primary">Enviar link de recuperação</button>
+                </form>
+            </div>
+
+            <div id="home-auth-password" class="home-auth-panel hidden">
+                <h2 class="auth-glass-title" id="home-password-title">Definir senha</h2>
+                <p class="home-auth-lead" id="home-password-lead">Crie uma senha para entrar com e-mail da próxima vez.</p>
+                <form id="home-password-form" class="home-signup-form">
+                    <label class="auth-field-label" for="home-password-new">Nova senha</label>
+                    <input type="password" id="home-password-new" class="home-auth-email-input" placeholder="Mínimo 6 caracteres" autocomplete="new-password" minlength="6" required>
+                    <label class="auth-field-label" for="home-password-confirm">Confirmar senha</label>
+                    <input type="password" id="home-password-confirm" class="home-auth-email-input" placeholder="Repita a senha" autocomplete="new-password" minlength="6" required>
+                    <button type="submit" class="home-account-btn home-auth-btn-primary" id="home-password-submit">Salvar senha</button>
+                    <button type="button" class="home-account-btn hidden" id="home-password-cancel">Cancelar</button>
                 </form>
             </div>
 
@@ -500,6 +515,7 @@
             </div>
 
             <div id="home-auth-user" class="home-auth-panel hidden">
+                <button type="button" class="home-account-btn" id="home-btn-change-password">Alterar senha</button>
                 <button type="button" class="home-account-btn" id="home-btn-manage-subscription">Gerenciar assinatura</button>
                 <button type="button" class="home-account-btn" id="home-btn-signout">Sair da conta</button>
             </div>
@@ -675,8 +691,8 @@
 
 </div>
 
-<script src="./js/auth.js?v=20260823a"></script>
-<script src="./js/billing.js?v=20260824a"></script>
-<script src="./js/app.js?v=20260824c"></script>
+<script src="./js/auth.js?v=20260823c"></script>
+<script src="./js/billing.js?v=20260824b"></script>
+<script src="./js/app.js?v=20260824e"></script>
 </body>
 </html>

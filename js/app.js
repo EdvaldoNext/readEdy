@@ -239,6 +239,7 @@ var safeStorage = (function() {
     var progressSaveTimer = null;
     var cloudUiBound = false;
     var cloudSyncInFlight = false;
+    var suppressAutoCloud = false;
     var cloudLibraryCount = 0;
     var cloudLibraryPanelOpen = false;
     var cloudLibrarySuppressClose = false;
@@ -836,6 +837,7 @@ var safeStorage = (function() {
     }
 
     function canUsePremiumFeatures() {
+        if (window.ReadEdyAuth && ReadEdyAuth.isAdmin && ReadEdyAuth.isAdmin()) return true;
         return !!(window.ReadEdyBilling && ReadEdyBilling.isActive());
     }
 
@@ -2209,6 +2211,50 @@ var safeStorage = (function() {
         } catch (e) { console.warn(e); }
     }
 
+    function getAuthUserId() {
+        return (window.ReadEdyAuth && ReadEdyAuth.isLoggedIn() && ReadEdyAuth.getUserId)
+            ? ReadEdyAuth.getUserId()
+            : null;
+    }
+
+    function ownedDocuments() {
+        var q = readeraSb.from('documents');
+        var uid = getAuthUserId();
+        if (uid) q = q.eq('user_id', uid);
+        return q;
+    }
+
+    function setDocumentDeletedAt(id, deletedAt) {
+        if (!readeraSb || !id) return Promise.resolve();
+        var uid = getAuthUserId();
+        if (!uid) return Promise.resolve();
+        return readeraSb.from('documents')
+            .update({ deleted_at: deletedAt })
+            .eq('id', id)
+            .eq('user_id', uid)
+            .then(function(r) {
+                if (r.error) throw r.error;
+            });
+    }
+
+    function persistLocalTrashToCloud(rows) {
+        var trash = loadTrashIds();
+        var uid = getAuthUserId();
+        if (!readeraSb || !uid || !trash.length) return Promise.resolve();
+        var pending = [];
+        for (var i = 0; i < (rows || []).length; i++) {
+            var r = rows[i];
+            if (r.id && !r.deleted_at && trash.indexOf(r.id) !== -1) {
+                r.deleted_at = new Date().toISOString();
+                pending.push(setDocumentDeletedAt(r.id, r.deleted_at));
+            }
+        }
+        if (!pending.length) return Promise.resolve();
+        return Promise.all(pending).catch(function(err) {
+            console.warn('persistLocalTrashToCloud', err);
+        });
+    }
+
     function updateCloudPrefsVisibility() {
         const on = !!readeraSb && window.ReadEdyAuth && ReadEdyAuth.isLoggedIn();
         var cloudGroup = document.getElementById('settings-group-cloud');
@@ -2224,7 +2270,7 @@ var safeStorage = (function() {
         patchCloudRowProgress(cloudDocumentId, pageNum, pdfDoc.numPages);
         clearTimeout(progressSaveTimer);
         progressSaveTimer = setTimeout(function() {
-            readeraSb.from('documents').update({
+            ownedDocuments().update({
                 last_page: pageNum,
                 num_pages: pdfDoc.numPages
             }).eq('id', cloudDocumentId).then(function() {}).catch(function(err) {
@@ -2816,7 +2862,11 @@ var safeStorage = (function() {
 
     function isTrashed(id) {
         if (!id) return false;
-        return loadTrashIds().indexOf(id) !== -1;
+        if (loadTrashIds().indexOf(id) !== -1) return true;
+        for (var i = 0; i < cloudLibraryRows.length; i++) {
+            if (cloudLibraryRows[i].id === id && cloudLibraryRows[i].deleted_at) return true;
+        }
+        return false;
     }
 
     function removeFromTrash(id) {
@@ -2827,20 +2877,24 @@ var safeStorage = (function() {
     function getNonTrashedRows(rows) {
         var trash = loadTrashIds();
         return (rows || cloudLibraryRows || []).filter(function(r) {
-            return r.id && trash.indexOf(r.id) === -1;
+            if (!r.id) return false;
+            if (r.deleted_at) return false;
+            return trash.indexOf(r.id) === -1;
         });
     }
 
     function getTrashedRows() {
         var trash = loadTrashIds();
-        if (!trash.length) return [];
         return (cloudLibraryRows || []).filter(function(r) {
-            return r.id && trash.indexOf(r.id) !== -1;
+            if (!r.id) return false;
+            if (r.deleted_at) return true;
+            return trash.indexOf(r.id) !== -1;
         });
     }
 
     function pruneStaleTrashIds() {
         var trash = loadTrashIds();
+        if (!trash.length || !cloudLibraryRows || !cloudLibraryRows.length) return;
         var known = {};
         for (var i = 0; i < cloudLibraryRows.length; i++) {
             if (cloudLibraryRows[i].id) known[cloudLibraryRows[i].id] = true;
@@ -2902,6 +2956,15 @@ var safeStorage = (function() {
         }
     }
 
+    function markLocalRowDeleted(id, deletedAt) {
+        for (var i = 0; i < cloudLibraryRows.length; i++) {
+            if (cloudLibraryRows[i].id === id) {
+                cloudLibraryRows[i].deleted_at = deletedAt;
+                return;
+            }
+        }
+    }
+
     function moveToTrash(id, title) {
         if (!id) return;
         var label = title || id;
@@ -2910,19 +2973,27 @@ var safeStorage = (function() {
         if (ids.indexOf(id) === -1) ids.push(id);
         saveTrashIds(ids);
         removeFavoriteId(id);
+        markLocalRowDeleted(id, new Date().toISOString());
         applyHomeSearch(homeSearchQuery);
         if (homeActiveTab === 'lixeira') renderHomeTrashList();
         if (typeof showTtsToast === 'function') showTtsToast('Movido para o lixeiro');
+        setDocumentDeletedAt(id, new Date().toISOString()).catch(function(err) {
+            console.warn('moveToTrash', err);
+        });
     }
 
     function restoreFromTrash(id, title) {
         if (!id) return;
         removeFromTrash(id);
+        markLocalRowDeleted(id, null);
         applyHomeSearch(homeSearchQuery);
         renderHomeTrashList();
         if (typeof showTtsToast === 'function') {
             showTtsToast('Restaurado: ' + (title || 'livro'));
         }
+        setDocumentDeletedAt(id, null).catch(function(err) {
+            console.warn('restoreFromTrash', err);
+        });
     }
 
     function renderHomeTrashList() {
@@ -3880,7 +3951,8 @@ var safeStorage = (function() {
         var panel = document.getElementById('cloud-library-panel');
         if (!panel) return;
         panel.innerHTML = '';
-        var list = getNonTrashedRows(rows || []);
+        rows = rows || [];
+        var list = getNonTrashedRows(rows);
         cloudLibraryCount = list.length;
         if (!list.length) {
             var empty = document.createElement('div');
@@ -3888,7 +3960,7 @@ var safeStorage = (function() {
             empty.textContent = 'Nenhum PDF na nuvem.';
             panel.appendChild(empty);
             updateCloudChrome();
-            renderHomeFromCloudLibrary([]);
+            renderHomeFromCloudLibrary(rows);
             return;
         }
         list.forEach(function(row) {
@@ -3921,7 +3993,7 @@ var safeStorage = (function() {
             panel.appendChild(item);
         });
         updateCloudChrome();
-        renderHomeFromCloudLibrary(list);
+        renderHomeFromCloudLibrary(rows);
     }
 
     function toggleCloudLibraryPanel() {
@@ -4056,6 +4128,8 @@ var safeStorage = (function() {
                 if (ReadEdyAuth.isLoggedIn()) {
                     pullUserPreferences();
                     refreshCloudLibrary().catch(function() {});
+                } else {
+                    renderCloudLibraryList([]);
                 }
             });
         }
@@ -4114,19 +4188,27 @@ var safeStorage = (function() {
 
     function refreshCloudLibrary() {
         if (!readeraSb) return Promise.resolve();
-        return readeraSb.from('documents')
-            .select('id, title, storage_path, last_page, num_pages, bytes, created_at, updated_at')
+        var uid = getAuthUserId();
+        if (!uid) {
+            renderCloudLibraryList([]);
+            return Promise.resolve();
+        }
+        return ownedDocuments()
+            .select('id, title, storage_path, last_page, num_pages, bytes, created_at, updated_at, deleted_at')
             .order('updated_at', { ascending: false })
-            .limit(50)
+            .limit(80)
             .then(function(result) {
                 var data = result.data, error = result.error;
                 if (error) {
                     console.warn(error);
-                    renderCloudLibraryList([]);
+                    renderCloudLibraryList(cloudLibraryRows || []);
                     return;
                 }
-                renderCloudLibraryList(data || []);
-                resetCloudLibraryTrigger();
+                var rows = data || [];
+                return persistLocalTrashToCloud(rows).then(function() {
+                    renderCloudLibraryList(rows);
+                    resetCloudLibraryTrigger();
+                });
             });
     }
 
@@ -4216,7 +4298,7 @@ var safeStorage = (function() {
             }
         }, 60000);
 
-        readeraSb.from('documents').select('id, title, storage_path, last_page').eq('id', id).single()
+        ownedDocuments().select('id, title, storage_path, last_page, deleted_at').eq('id', id).is('deleted_at', null).single()
             .then(function(result) {
                 if (gen !== cloudLoadGen) return;
                 var row = result.data, error = result.error;
@@ -4266,7 +4348,7 @@ var safeStorage = (function() {
         if (safeStorage.getItem(LS_RESUME_CLOUD) === '0') return Promise.resolve();
         var id = safeStorage.getItem(LS_LAST_CLOUD_DOC);
         if (!id) return Promise.resolve();
-        return readeraSb.from('documents').select('id, title, storage_path, last_page').eq('id', id).maybeSingle()
+        return ownedDocuments().select('id, title, storage_path, last_page, deleted_at').eq('id', id).is('deleted_at', null).maybeSingle()
             .then(function(result) {
                 var row = result.data, error = result.error;
                 if (error || !row) { persistLastCloudDocId(null); return; }
@@ -4304,9 +4386,8 @@ var safeStorage = (function() {
         if (cloudDocumentId) return Promise.resolve(null);
         var userId = ReadEdyAuth.getUserId();
         var newBytes = pdfCacheBytes.byteLength;
-        return readeraSb.from('documents')
+        return ownedDocuments()
             .select('bytes')
-            .eq('user_id', userId)
             .then(function(res) {
                 if (res.error) throw res.error;
                 var rows = res.data || [];
@@ -4371,6 +4452,7 @@ var safeStorage = (function() {
     function clearCloudLinkForDocument(id) {
         if (cloudDocumentId === id) {
             cloudDocumentId = null;
+            suppressAutoCloud = true;
             if (pdfDoc) stopTTS({ resetBookmark: true });
         }
         if (safeStorage.getItem(LS_LAST_CLOUD_DOC) === id) persistLastCloudDocId(null);
@@ -4381,6 +4463,11 @@ var safeStorage = (function() {
 
     function deleteCloudDocumentById(id, title, fromTrash) {
         if (!readeraSb || !id) return;
+        var uid = getAuthUserId();
+        if (!uid) {
+            showNotification('Faça login para apagar PDFs da nuvem.', true);
+            return;
+        }
         var label = title || id;
         var msg = fromTrash
             ? ('Apagar permanentemente?\n\n' + label + '\n\nEsta ação não pode ser desfeita.')
@@ -4388,13 +4475,14 @@ var safeStorage = (function() {
         if (!confirm(msg)) return;
         closeCloudLibraryPanel();
         setAppLoading(true, 'A apagar da nuvem…');
-        readeraSb.from('documents').select('storage_path').eq('id', id).single()
+        ownedDocuments().select('storage_path').eq('id', id).maybeSingle()
             .then(function(r) {
-                if (r.error || !r.data || !r.data.storage_path) throw r.error || new Error('Metadados do documento não encontrados');
+                if (r.error) throw r.error;
+                if (!r.data || !r.data.storage_path) throw new Error('Este PDF não pertence à sua conta ou já foi apagado.');
                 return readeraSb.storage.from('pdfs').remove([r.data.storage_path]);
             }).then(function(r) {
                 if (r.error) throw r.error;
-                return readeraSb.from('documents').delete().eq('id', id);
+                return ownedDocuments().delete().eq('id', id);
             }).then(function(r) {
                 if (r.error) throw r.error;
                 clearCloudLinkForDocument(id);
@@ -4413,10 +4501,14 @@ var safeStorage = (function() {
 
     function deleteAllCloudDocuments() {
         if (!readeraSb || cloudLibraryCount === 0) return;
+        if (!getAuthUserId()) {
+            showNotification('Faça login para apagar PDFs da nuvem.', true);
+            return;
+        }
         if (!confirm('Apagar TODOS os PDFs da nuvem?\n\nSerão removidos ' + cloudLibraryCount + ' ficheiro(s) no Storage e todos os registos na base de dados.\n\nEsta ação não pode ser desfeita.')) return;
         closeCloudLibraryPanel();
         setAppLoading(true, 'A apagar todos os PDFs da nuvem…');
-        readeraSb.from('documents').select('id, storage_path')
+        ownedDocuments().select('id, storage_path')
             .then(function(r) {
                 if (r.error) throw r.error;
                 var rows = r.data || [];
@@ -4429,10 +4521,11 @@ var safeStorage = (function() {
                 });
             }).then(function(meta) {
                 if (!meta || !meta.ids || !meta.ids.length) return;
-                return readeraSb.from('documents').delete().in('id', meta.ids);
+                return ownedDocuments().delete().in('id', meta.ids);
             }).then(function(r) {
                 if (r && r.error) throw r.error;
                 cloudDocumentId = null;
+                suppressAutoCloud = true;
                 persistLastCloudDocId(null);
                 if (pdfDoc) stopTTS({ resetBookmark: true });
                 return refreshCloudLibrary();
@@ -4448,6 +4541,7 @@ var safeStorage = (function() {
     }
 
     function attemptAutoCloudSync() {
+        if (suppressAutoCloud) return;
         if (!readeraSb || cloudDocumentId || !pdfCacheBytes || !pdfDoc) return;
         if (safeStorage.getItem(LS_AUTO_CLOUD) === '0') return;
         if (cloudSyncInFlight) return;
@@ -4532,6 +4626,7 @@ var safeStorage = (function() {
         var gen = ++cloudLoadGen;
         persistLastCloudDocId(null);
         cloudDocumentId = null;
+        suppressAutoCloud = false;
         lastOpenedFileName = file.name;
         currentBookTitle = file.name;
         teardownCurrentPdf();
@@ -5377,6 +5472,8 @@ var safeStorage = (function() {
         if (loggedIn) document.body.classList.add('auth-session');
         else document.body.classList.remove('auth-session');
         var active = window.ReadEdyBilling && ReadEdyBilling.isActive();
+        var isAdminUser = window.ReadEdyAuth && ReadEdyAuth.isAdmin && ReadEdyAuth.isAdmin();
+        var unlocked = !!(active || isAdminUser);
         var needsLink = window.ReadEdyBilling && ReadEdyBilling.needsGoogleLink();
         var nameEl = document.getElementById('home-account-name');
         var subEl = document.getElementById('home-account-cloud-status');
@@ -5385,10 +5482,21 @@ var safeStorage = (function() {
         var authGuest = document.getElementById('home-auth-guest');
         var authUser = document.getElementById('home-auth-user');
         var authPostpay = document.getElementById('home-auth-postpay');
+        var authPassword = document.getElementById('home-auth-password');
+        var recovering = window.ReadEdyAuth && ReadEdyAuth.isPasswordRecovery();
+        if (recovering) {
+            passwordFormMode = 'recovery';
+            document.body.classList.add('password-recovery');
+            if (typeof openHomeView === 'function') openHomeView('conta');
+        } else {
+            document.body.classList.remove('password-recovery');
+            if (passwordFormMode === 'recovery') passwordFormMode = null;
+        }
         if (nameEl) nameEl.textContent = loggedIn ? (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name) || user.email || 'Conta ReadEdy') : 'ReadEdy';
         if (subEl) {
             if (!readeraSb) subEl.textContent = 'Nuvem desligada (sem config.js)';
             else if (!loggedIn) subEl.textContent = 'Entre com e-mail ou Google para continuar';
+            else if (isAdminUser) subEl.textContent = 'Nuvem ligada · acesso vitalício';
             else if (active) subEl.textContent = 'Nuvem ligada · sessão ativa';
             else if (needsLink) subEl.textContent = 'Pagamento recebido — vincule com Google';
             else if (loggedIn && window.ReadEdyBilling && ReadEdyBilling.getCheckoutToken()) {
@@ -5399,28 +5507,39 @@ var safeStorage = (function() {
         if (planEl && window.ReadEdyBilling) {
             if (!loggedIn && !needsLink) planEl.textContent = 'Planos a partir de R$ 9,99/mês';
             else if (needsLink) planEl.textContent = 'Último passo: vincular conta Google';
+            else if (isAdminUser) planEl.textContent = 'Plano: Vitalício';
             else if (active) planEl.textContent = 'Plano: ' + ReadEdyBilling.planLabel();
             else planEl.textContent = 'Assinatura inativa — escolha um plano abaixo';
         }
         if (usageEl) {
-            if (active && window.ReadEdyBilling && ReadEdyBilling.formatUsageText()) {
+            if (unlocked && window.ReadEdyBilling && ReadEdyBilling.formatUsageText()) {
                 usageEl.textContent = 'Uso: ' + ReadEdyBilling.formatUsageText();
                 usageEl.classList.remove('hidden');
             } else {
                 usageEl.classList.add('hidden');
             }
         }
+        if (authPassword) {
+            if (passwordFormMode === 'recovery' || passwordFormMode === 'change') {
+                authPassword.classList.remove('hidden');
+                syncPasswordFormCopy();
+            } else {
+                authPassword.classList.add('hidden');
+            }
+        }
         if (authGuest) {
-            if (!loggedIn && !needsLink) authGuest.classList.remove('hidden');
-            else if (loggedIn && !active && !needsLink) authGuest.classList.remove('hidden');
+            if (passwordFormMode === 'recovery') authGuest.classList.add('hidden');
+            else if (!loggedIn && !needsLink) authGuest.classList.remove('hidden');
+            else if (loggedIn && !unlocked && !needsLink && passwordFormMode !== 'change') authGuest.classList.remove('hidden');
+            else if (passwordFormMode === 'change' && loggedIn && !unlocked && !needsLink) authGuest.classList.add('hidden');
             else authGuest.classList.add('hidden');
         }
         if (authPostpay) {
-            if (needsLink && !active) authPostpay.classList.remove('hidden');
+            if (needsLink && !unlocked && passwordFormMode !== 'recovery') authPostpay.classList.remove('hidden');
             else authPostpay.classList.add('hidden');
         }
         if (authUser) {
-            if (loggedIn && active && !needsLink) authUser.classList.remove('hidden');
+            if (loggedIn && unlocked && !needsLink && passwordFormMode !== 'recovery' && passwordFormMode !== 'change') authUser.classList.remove('hidden');
             else authUser.classList.add('hidden');
         }
         var signupBlock = document.getElementById('home-signup-block');
@@ -5428,20 +5547,50 @@ var safeStorage = (function() {
             if (loggedIn) signupBlock.classList.add('hidden');
             else signupBlock.classList.remove('hidden');
         }
+        var planCards = document.querySelector('#home-auth-guest .home-plan-cards');
+        if (planCards) {
+            if (isAdminUser || unlocked) planCards.classList.add('hidden');
+            else planCards.classList.remove('hidden');
+        }
         var leadText = document.getElementById('home-auth-lead-text');
         if (leadText) {
-            leadText.textContent = loggedIn
-                ? 'Conta criada. Pague um plano para liberar o uso do ReadEdy.'
-                : 'Entre com suas credenciais para acessar';
+            leadText.textContent = isAdminUser
+                ? 'Conta com acesso vitalício. Você já pode usar o ReadEdy.'
+                : (loggedIn
+                    ? 'Conta criada. Pague um plano para liberar o uso do ReadEdy.'
+                    : 'Entre com suas credenciais para acessar');
         }
         var signoutLogged = document.getElementById('home-btn-signout-logged');
         if (signoutLogged) {
-            if (loggedIn && !needsLink) signoutLogged.classList.remove('hidden');
+            if (loggedIn && !needsLink && passwordFormMode !== 'recovery' && passwordFormMode !== 'change') signoutLogged.classList.remove('hidden');
             else signoutLogged.classList.add('hidden');
+        }
+        var changeGuest = document.getElementById('home-btn-change-password-guest');
+        if (changeGuest) {
+            if (loggedIn && !needsLink && passwordFormMode !== 'recovery' && passwordFormMode !== 'change') changeGuest.classList.remove('hidden');
+            else changeGuest.classList.add('hidden');
         }
     }
 
     var signupMode = 'signup';
+    var passwordFormMode = null;
+
+    function syncPasswordFormCopy() {
+        var title = document.getElementById('home-password-title');
+        var lead = document.getElementById('home-password-lead');
+        var cancel = document.getElementById('home-password-cancel');
+        var changing = passwordFormMode === 'change';
+        if (title) title.textContent = changing ? 'Alterar senha' : 'Definir senha';
+        if (lead) {
+            lead.textContent = changing
+                ? 'Digite a nova senha para esta conta.'
+                : 'Crie uma senha para entrar com e-mail da próxima vez.';
+        }
+        if (cancel) {
+            if (changing) cancel.classList.remove('hidden');
+            else cancel.classList.add('hidden');
+        }
+    }
 
     function wireSignupForm() {
         var tabSignup = document.getElementById('home-tab-signup');
@@ -5530,6 +5679,12 @@ var safeStorage = (function() {
         if (msg.indexOf('password') >= 0 && msg.indexOf('6') >= 0) {
             return 'A senha precisa ter no mínimo 6 caracteres.';
         }
+        if (msg.indexOf('same password') >= 0 || msg.indexOf('should be different') >= 0) {
+            return 'A nova senha precisa ser diferente da atual.';
+        }
+        if (msg.indexOf('rate limit') >= 0 || msg.indexOf('for security purposes') >= 0) {
+            return 'Aguarde um minuto e tente enviar o e-mail de novo.';
+        }
         return err && err.message ? err.message : String(err);
     }
 
@@ -5564,16 +5719,78 @@ var safeStorage = (function() {
         if (recoverToggle && form) {
             recoverToggle.addEventListener('click', function() {
                 form.classList.toggle('hidden');
+                if (!form.classList.contains('hidden') && emailInput) {
+                    var signupEmail = document.getElementById('home-signup-email');
+                    if (signupEmail && signupEmail.value && !emailInput.value) {
+                        emailInput.value = signupEmail.value;
+                    }
+                    emailInput.focus();
+                }
             });
         }
         if (form) {
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
                 if (!window.ReadEdyAuth || !emailInput) return;
-                ReadEdyAuth.signInWithEmail(emailInput.value.trim()).then(function() {
-                    showNotification('Se o e-mail existir, enviaremos um link de recuperação.', false);
+                var recoverBtn = form.querySelector('button[type="submit"]');
+                if (recoverBtn) recoverBtn.disabled = true;
+                ReadEdyAuth.resetPasswordForEmail(emailInput.value.trim()).then(function() {
+                    showNotification('Se o e-mail existir, enviaremos um link da ReadEdy para criar a senha.', false);
+                    form.classList.add('hidden');
                 }).catch(function(err) {
-                    showNotification(err.message || String(err), true);
+                    showNotification(translateAuthError(err), true);
+                }).then(function() {
+                    if (recoverBtn) recoverBtn.disabled = false;
+                });
+            });
+        }
+        var passwordForm = document.getElementById('home-password-form');
+        var passwordNew = document.getElementById('home-password-new');
+        var passwordConfirm = document.getElementById('home-password-confirm');
+        var passwordSubmit = document.getElementById('home-password-submit');
+        var passwordCancel = document.getElementById('home-password-cancel');
+        function openChangePassword() {
+            if (!window.ReadEdyAuth || !ReadEdyAuth.isLoggedIn()) return;
+            passwordFormMode = 'change';
+            syncPasswordFormCopy();
+            if (passwordNew) passwordNew.value = '';
+            if (passwordConfirm) passwordConfirm.value = '';
+            updateAccountUi();
+            if (passwordNew) passwordNew.focus();
+        }
+        var btnChange = document.getElementById('home-btn-change-password');
+        var btnChangeGuest = document.getElementById('home-btn-change-password-guest');
+        if (btnChange) btnChange.addEventListener('click', openChangePassword);
+        if (btnChangeGuest) btnChangeGuest.addEventListener('click', openChangePassword);
+        if (passwordCancel) {
+            passwordCancel.addEventListener('click', function() {
+                passwordFormMode = null;
+                if (passwordNew) passwordNew.value = '';
+                if (passwordConfirm) passwordConfirm.value = '';
+                updateAccountUi();
+            });
+        }
+        if (passwordForm) {
+            passwordForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                if (!window.ReadEdyAuth) return;
+                var next = passwordNew ? String(passwordNew.value || '') : '';
+                var again = passwordConfirm ? String(passwordConfirm.value || '') : '';
+                if (next !== again) {
+                    showNotification('As senhas não coincidem.', true);
+                    return;
+                }
+                if (passwordSubmit) passwordSubmit.disabled = true;
+                ReadEdyAuth.updatePassword(next).then(function() {
+                    passwordFormMode = null;
+                    if (passwordNew) passwordNew.value = '';
+                    if (passwordConfirm) passwordConfirm.value = '';
+                    showNotification('Senha salva. Agora você pode entrar com e-mail e senha.', false);
+                    updateAccountUi();
+                }).catch(function(err) {
+                    showNotification(translateAuthError(err), true);
+                }).then(function() {
+                    if (passwordSubmit) passwordSubmit.disabled = false;
                 });
             });
         }

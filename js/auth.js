@@ -5,6 +5,37 @@ window.ReadEdyAuth = (function() {
     var listeners = [];
     var _bound = false;
     var _linkingCheckout = false;
+    var _passwordRecovery = false;
+
+    function urlIndicatesRecovery() {
+        try {
+            var href = window.location.href || '';
+            if (href.indexOf('type=recovery') >= 0) return true;
+            var u = new URL(href);
+            if (u.searchParams.get('type') === 'recovery') return true;
+        } catch (e) {}
+        return false;
+    }
+
+    function persistRecoveryFlag() {
+        try {
+            if (_passwordRecovery) sessionStorage.setItem('readedy_pw_recovery', '1');
+            else sessionStorage.removeItem('readedy_pw_recovery');
+        } catch (e) {}
+    }
+
+    function isPasswordRecovery() { return !!_passwordRecovery; }
+
+    function beginPasswordRecovery() {
+        _passwordRecovery = true;
+        persistRecoveryFlag();
+        notify();
+    }
+
+    function clearPasswordRecovery() {
+        _passwordRecovery = false;
+        persistRecoveryFlag();
+    }
 
     function notify() {
         for (var i = 0; i < listeners.length; i++) {
@@ -42,6 +73,10 @@ window.ReadEdyAuth = (function() {
         return base;
     }
 
+    function getRecoveryRedirectTo() {
+        return window.location.origin + window.location.pathname + '?tab=conta';
+    }
+
     function tryLinkCheckoutAfterLogin() {
         if (_linkingCheckout) return Promise.resolve();
         if (!window.ReadEdyBilling || !ReadEdyBilling.getCheckoutToken()) return Promise.resolve();
@@ -62,19 +97,33 @@ window.ReadEdyAuth = (function() {
             });
         }
         _bound = true;
+        if (urlIndicatesRecovery()) _passwordRecovery = true;
+        try {
+            if (!_passwordRecovery && sessionStorage.getItem('readedy_pw_recovery') === '1') {
+                _passwordRecovery = true;
+            }
+        } catch (e) {}
+
+        client.auth.onAuthStateChange(function(event, newSession) {
+            session = newSession;
+            if (event === 'PASSWORD_RECOVERY') {
+                _passwordRecovery = true;
+                persistRecoveryFlag();
+            }
+            if (event === 'SIGNED_OUT') clearPasswordRecovery();
+            notify();
+            if (newSession && window.ReadEdyBilling && !_passwordRecovery) {
+                tryLinkCheckoutAfterLogin();
+            }
+        });
 
         return client.auth.getSession().then(function(res) {
             session = res.data && res.data.session ? res.data.session : null;
+            if (!session) clearPasswordRecovery();
+            persistRecoveryFlag();
             cleanOAuthParams();
             notify();
-            client.auth.onAuthStateChange(function(_event, newSession) {
-                session = newSession;
-                notify();
-                if (newSession && window.ReadEdyBilling) {
-                    tryLinkCheckoutAfterLogin();
-                }
-            });
-            return tryLinkCheckoutAfterLogin();
+            return _passwordRecovery ? Promise.resolve() : tryLinkCheckoutAfterLogin();
         }).then(function() {
             return session;
         });
@@ -100,6 +149,12 @@ window.ReadEdyAuth = (function() {
     }
 
     function isLoggedIn() { return !!getAccessToken(); }
+
+    function isAdmin() {
+        var user = getUser();
+        if (!user) return false;
+        return (user.app_metadata || {}).role === 'admin';
+    }
 
     function authHeaders() {
         var cfg = window.READERA_SUPABASE || {};
@@ -152,10 +207,36 @@ window.ReadEdyAuth = (function() {
         });
     }
 
+    function resetPasswordForEmail(email) {
+        if (!client) return Promise.reject(new Error('Cliente Supabase não iniciado'));
+        if (!email) return Promise.reject(new Error('Informe o e-mail'));
+        return client.auth.resetPasswordForEmail(email, {
+            redirectTo: getRecoveryRedirectTo()
+        }).then(function(res) {
+            if (res.error) throw res.error;
+            return res.data;
+        });
+    }
+
+    function updatePassword(password) {
+        if (!client) return Promise.reject(new Error('Cliente Supabase não iniciado'));
+        if (!isLoggedIn()) return Promise.reject(new Error('Sessão expirada. Peça um novo link.'));
+        if (!password || password.length < 6) {
+            return Promise.reject(new Error('A senha precisa ter no mínimo 6 caracteres'));
+        }
+        return client.auth.updateUser({ password: password }).then(function(res) {
+            if (res.error) throw res.error;
+            clearPasswordRecovery();
+            notify();
+            return res.data;
+        });
+    }
+
     function signOut() {
         if (!client) return Promise.resolve();
         return client.auth.signOut().then(function() {
             session = null;
+            clearPasswordRecovery();
             notify();
         });
     }
@@ -177,11 +258,17 @@ window.ReadEdyAuth = (function() {
         getUserId: getUserId,
         getUser: getUser,
         isLoggedIn: isLoggedIn,
+        isAdmin: isAdmin,
         authHeaders: authHeaders,
         signInWithGoogle: signInWithGoogle,
         signInWithEmail: signInWithEmail,
         signUpWithPassword: signUpWithPassword,
         signInWithPassword: signInWithPassword,
+        resetPasswordForEmail: resetPasswordForEmail,
+        updatePassword: updatePassword,
+        isPasswordRecovery: isPasswordRecovery,
+        beginPasswordRecovery: beginPasswordRecovery,
+        clearPasswordRecovery: clearPasswordRecovery,
         signOut: signOut,
         logSessionStart: logSessionStart,
         tryLinkCheckoutAfterLogin: tryLinkCheckoutAfterLogin
