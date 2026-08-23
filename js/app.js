@@ -3993,10 +3993,14 @@ var safeStorage = (function() {
             ? ReadEdyAuth.init(readeraSb)
             : Promise.resolve(null);
         authReady.then(function() {
-            if (window.ReadEdyBilling) return ReadEdyBilling.refresh(readeraSb);
+            if (window.ReadEdyBilling) {
+                ReadEdyBilling.onReturnFromMp();
+                return ReadEdyBilling.refresh(readeraSb);
+            }
         }).then(function() {
             if (window.ReadEdyAuth) ReadEdyAuth.logSessionStart();
             updateAccountUi();
+            trackSiteVisit();
         }).catch(function(err) {
             console.warn('Auth init', err);
         });
@@ -4259,26 +4263,51 @@ var safeStorage = (function() {
         if (!window.ReadEdyAuth || !ReadEdyAuth.isLoggedIn()) {
             return Promise.reject(new Error('Faça login para guardar na nuvem'));
         }
+        if (!canUsePremiumFeatures()) {
+            return Promise.reject(new Error('Assinatura ativa necessária. Escolha um plano na aba Conta.'));
+        }
         if (cloudDocumentId) return Promise.resolve(null);
         var userId = ReadEdyAuth.getUserId();
-        var docId = generateUUID();
-        var path = userId + '/' + docId + '.pdf';
-        var title = lastOpenedFileName || 'documento.pdf';
-        return readeraSb.storage.from('pdfs').upload(path, pdfCacheBytes, { contentType: 'application/pdf', upsert: false })
-            .then(function(r) {
-                if (r.error) throw r.error;
-                return readeraSb.from('documents').insert({
-                    id: docId, user_id: userId, title: title, storage_path: path,
-                    bytes: pdfCacheBytes.byteLength, num_pages: pdfDoc.numPages, last_page: pageNum
-                }).select('id').single();
-            }).then(function(r) {
-                if (r.error) throw r.error;
-                cloudDocumentId = r.data.id;
-                persistLastCloudDocId(r.data.id);
-                return refreshCloudLibrary();
-            }).then(function() {
-                updateCloudChrome();
-                if (!silent) showNotification('PDF guardado na nuvem.', false);
+        var newBytes = pdfCacheBytes.byteLength;
+        return readeraSb.from('documents')
+            .select('bytes')
+            .eq('user_id', userId)
+            .then(function(res) {
+                if (res.error) throw res.error;
+                var rows = res.data || [];
+                var pdfCount = rows.length;
+                var totalBytes = 0;
+                for (var i = 0; i < rows.length; i++) totalBytes += Number(rows[i].bytes) || 0;
+                var plan = window.ReadEdyBilling && ReadEdyBilling.getStatus() && ReadEdyBilling.getStatus().plan;
+                var maxPdfs = plan && plan.max_pdfs ? plan.max_pdfs : 3;
+                var maxMb = plan && plan.storage_mb ? plan.storage_mb : 45;
+                var maxBytes = maxMb * 1024 * 1024;
+                if (pdfCount >= maxPdfs) {
+                    throw new Error('Limite do plano: máximo ' + maxPdfs + ' PDFs na nuvem.');
+                }
+                if (totalBytes + newBytes > maxBytes) {
+                    throw new Error('Limite do plano: máximo ' + maxMb + ' MB na nuvem.');
+                }
+                var docId = generateUUID();
+                var path = userId + '/' + docId + '.pdf';
+                var title = lastOpenedFileName || 'documento.pdf';
+                return readeraSb.storage.from('pdfs').upload(path, pdfCacheBytes, { contentType: 'application/pdf', upsert: false })
+                    .then(function(r) {
+                        if (r.error) throw r.error;
+                        return readeraSb.from('documents').insert({
+                            id: docId, user_id: userId, title: title, storage_path: path,
+                            bytes: newBytes, num_pages: pdfDoc.numPages, last_page: pageNum
+                        }).select('id').single();
+                    }).then(function(r) {
+                        if (r.error) throw r.error;
+                        cloudDocumentId = r.data.id;
+                        persistLastCloudDocId(r.data.id);
+                        if (window.ReadEdyBilling) ReadEdyBilling.refresh(readeraSb);
+                        return refreshCloudLibrary();
+                    }).then(function() {
+                        updateCloudChrome();
+                        if (!silent) showNotification('PDF guardado na nuvem.', false);
+                    });
             });
     }
 
@@ -4286,6 +4315,11 @@ var safeStorage = (function() {
         if (!readeraSb) { showNotification('Nuvem não está ligada. Verifique config.js.', true); return; }
         if (!window.ReadEdyAuth || !ReadEdyAuth.isLoggedIn()) {
             showNotification('Faça login na aba Conta para usar a nuvem.', true);
+            return;
+        }
+        if (!canUsePremiumFeatures()) {
+            showNotification('Assinatura ativa necessária. Escolha um plano na aba Conta.', true);
+            openHomeView('conta');
             return;
         }
         if (!pdfDoc || !pdfCacheBytes) { showNotification('Abra um PDF primeiro para guardar na nuvem.', true); return; }
@@ -5228,46 +5262,128 @@ var safeStorage = (function() {
         updateLayoutToggleVisible();
     });
 
+    function getVisitorId() {
+        var key = 'readedy_visitor_id';
+        try {
+            var id = localStorage.getItem(key);
+            if (id) return id;
+            id = 'v_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+            localStorage.setItem(key, id);
+            return id;
+        } catch (e) {
+            return 'v_anon';
+        }
+    }
+
+    function trackSiteVisit() {
+        var cfg = window.READERA_SUPABASE;
+        if (!cfg || !cfg.url || !cfg.anonKey) return;
+        var token = (window.ReadEdyAuth && ReadEdyAuth.isLoggedIn())
+            ? ReadEdyAuth.getAccessToken() : cfg.anonKey;
+        var url = cfg.url.replace(/\/$/, '') + '/functions/v1/track-visit';
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': cfg.anonKey,
+                'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify({
+                visitor_id: getVisitorId(),
+                path: window.location.pathname + window.location.search,
+                referrer: document.referrer || ''
+            })
+        }).catch(function() {});
+    }
+
+    function startPlanCheckout(planSlug) {
+        if (!window.ReadEdyBilling) return;
+        setAppLoading(true, 'A abrir checkout…');
+        ReadEdyBilling.startCheckout(planSlug).catch(function(err) {
+            showNotification(err.message || String(err), true);
+        }).then(function() {
+            setAppLoading(false);
+        });
+    }
+
     function updateAccountUi() {
         var loggedIn = window.ReadEdyAuth && ReadEdyAuth.isLoggedIn();
         var user = loggedIn ? ReadEdyAuth.getUser() : null;
+        var active = window.ReadEdyBilling && ReadEdyBilling.isActive();
+        var needsLink = window.ReadEdyBilling && ReadEdyBilling.needsGoogleLink();
         var nameEl = document.getElementById('home-account-name');
         var subEl = document.getElementById('home-account-cloud-status');
         var planEl = document.getElementById('home-account-plan-status');
+        var usageEl = document.getElementById('home-account-usage-status');
         var authGuest = document.getElementById('home-auth-guest');
         var authUser = document.getElementById('home-auth-user');
+        var authPostpay = document.getElementById('home-auth-postpay');
         if (nameEl) nameEl.textContent = loggedIn ? (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name) || user.email || 'Conta ReadEdy') : 'ReadEdy';
         if (subEl) {
             if (!readeraSb) subEl.textContent = 'Nuvem desligada (sem config.js)';
-            else if (!loggedIn) subEl.textContent = 'Entre para sincronizar PDFs na nuvem';
-            else subEl.textContent = 'Nuvem ligada · sessão ativa';
+            else if (!loggedIn) subEl.textContent = 'Assine um plano para usar a nuvem';
+            else if (active) subEl.textContent = 'Nuvem ligada · sessão ativa';
+            else if (needsLink) subEl.textContent = 'Pagamento recebido — vincule com Google';
+            else subEl.textContent = 'Conta sem assinatura ativa';
         }
         if (planEl && window.ReadEdyBilling) {
-            var st = ReadEdyBilling.getStatus();
-            if (!loggedIn) planEl.textContent = 'Trial de 30 dias ao criar conta';
-            else if (ReadEdyBilling.isActive()) planEl.textContent = 'Plano: ' + ReadEdyBilling.planLabel();
-            else planEl.textContent = 'Assinatura inativa — renove para TTS na nuvem';
+            if (!loggedIn && !needsLink) planEl.textContent = 'Planos a partir de R$ 9,99/mês';
+            else if (needsLink) planEl.textContent = 'Último passo: vincular conta Google';
+            else if (active) planEl.textContent = 'Plano: ' + ReadEdyBilling.planLabel();
+            else planEl.textContent = 'Assinatura inativa — escolha um plano abaixo';
+        }
+        if (usageEl) {
+            if (active && window.ReadEdyBilling && ReadEdyBilling.formatUsageText()) {
+                usageEl.textContent = 'Uso: ' + ReadEdyBilling.formatUsageText();
+                usageEl.classList.remove('hidden');
+            } else {
+                usageEl.classList.add('hidden');
+            }
         }
         if (authGuest) {
-            if (loggedIn) authGuest.classList.add('hidden'); else authGuest.classList.remove('hidden');
+            if (!loggedIn && !needsLink) authGuest.classList.remove('hidden');
+            else if (loggedIn && !active && !needsLink) authGuest.classList.remove('hidden');
+            else authGuest.classList.add('hidden');
+        }
+        if (authPostpay) {
+            if (needsLink && !active) authPostpay.classList.remove('hidden');
+            else authPostpay.classList.add('hidden');
         }
         if (authUser) {
-            if (loggedIn) authUser.classList.remove('hidden'); else authUser.classList.add('hidden');
+            if (loggedIn && active && !needsLink) authUser.classList.remove('hidden');
+            else authUser.classList.add('hidden');
         }
     }
 
     function wireAuthUi() {
-        var btnGoogle = document.getElementById('home-btn-auth-google');
-        var btnEmail = document.getElementById('home-btn-auth-email');
+        var btnLinkGoogle = document.getElementById('home-btn-link-google');
         var btnSignOut = document.getElementById('home-btn-signout');
         var emailInput = document.getElementById('home-auth-email-input');
         var form = document.getElementById('home-auth-email-form');
-        if (btnGoogle) {
-            btnGoogle.addEventListener('click', function() {
+        var recoverToggle = document.getElementById('home-btn-recover-toggle');
+        var planBasic = document.getElementById('home-btn-plan-basic');
+        var planPremium = document.getElementById('home-btn-plan-premium');
+        if (planBasic) {
+            planBasic.addEventListener('click', function() {
+                startPlanCheckout('basic_monthly');
+            });
+        }
+        if (planPremium) {
+            planPremium.addEventListener('click', function() {
+                startPlanCheckout('premium_monthly');
+            });
+        }
+        if (btnLinkGoogle) {
+            btnLinkGoogle.addEventListener('click', function() {
                 if (!window.ReadEdyAuth) return;
                 ReadEdyAuth.signInWithGoogle().catch(function(e) {
                     showNotification(e.message || String(e), true);
                 });
+            });
+        }
+        if (recoverToggle && form) {
+            recoverToggle.addEventListener('click', function() {
+                form.classList.toggle('hidden');
             });
         }
         if (form) {
@@ -5275,7 +5391,7 @@ var safeStorage = (function() {
                 e.preventDefault();
                 if (!window.ReadEdyAuth || !emailInput) return;
                 ReadEdyAuth.signInWithEmail(emailInput.value.trim()).then(function() {
-                    showNotification('Verifique seu e-mail para entrar.', false);
+                    showNotification('Se o e-mail existir, enviaremos um link de recuperação.', false);
                 }).catch(function(err) {
                     showNotification(err.message || String(err), true);
                 });
@@ -5301,42 +5417,28 @@ var safeStorage = (function() {
         document.querySelectorAll('.sidebar-premium-btn, .home-pro-banner').forEach(function(btn) {
             btn.addEventListener('click', function(e) {
                 e.preventDefault();
-                if (!window.ReadEdyAuth || !ReadEdyAuth.isLoggedIn()) {
-                    showNotification('Faça login na aba Conta para assinar o ReadEdy Pro.', true);
-                    return;
-                }
-                if (window.ReadEdyBilling && ReadEdyBilling.isActive()) {
-                    showNotification('Sua assinatura já está ativa.', false);
-                    return;
-                }
-                if (!window.ReadEdyBilling) return;
-                setAppLoading(true, 'A abrir checkout…');
-                ReadEdyBilling.startCheckout('pro_monthly').catch(function(err) {
-                    showNotification(err.message || String(err), true);
-                }).then(function() {
-                    setAppLoading(false);
-                });
+                openHomeView('conta');
             });
         });
         var manageBtn = document.getElementById('home-btn-manage-subscription');
         if (manageBtn) {
             manageBtn.addEventListener('click', function() {
-                if (!window.ReadEdyAuth || !ReadEdyAuth.isLoggedIn()) {
-                    showNotification('Faça login primeiro.', true);
-                    return;
-                }
                 if (window.ReadEdyBilling && ReadEdyBilling.isActive()) {
                     showNotification('Assinatura ativa: ' + ReadEdyBilling.planLabel(), false);
                     return;
                 }
-                setAppLoading(true, 'A abrir checkout…');
-                ReadEdyBilling.startCheckout('pro_monthly').catch(function(err) {
-                    showNotification(err.message || String(err), true);
-                }).then(function() { setAppLoading(false); });
+                startPlanCheckout('basic_monthly');
             });
         }
     }
 
     wireAuthUi();
+    if (window.ReadEdyBilling) ReadEdyBilling.onReturnFromMp();
+    try {
+        var bootUrl = new URL(window.location.href);
+        if (bootUrl.searchParams.get('tab') === 'conta') {
+            setTimeout(function() { openHomeView('conta'); }, 0);
+        }
+    } catch (e) {}
     initSupabaseClient();
     wireHomeUi();

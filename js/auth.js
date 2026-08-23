@@ -4,6 +4,7 @@ window.ReadEdyAuth = (function() {
     var session = null;
     var listeners = [];
     var _bound = false;
+    var _linkingCheckout = false;
 
     function notify() {
         for (var i = 0; i < listeners.length; i++) {
@@ -27,12 +28,39 @@ window.ReadEdyAuth = (function() {
     }
 
     function getRedirectTo() {
-        return window.location.origin + window.location.pathname;
+        var base = window.location.origin + window.location.pathname;
+        try {
+            if (window.ReadEdyBilling) {
+                var token = ReadEdyBilling.getCheckoutToken();
+                if (token) return base + '?checkout=' + encodeURIComponent(token) + '&tab=conta';
+            }
+            var u = new URL(window.location.href);
+            if (u.searchParams.get('tab') === 'conta') {
+                return base + '?tab=conta';
+            }
+        } catch (e) {}
+        return base;
+    }
+
+    function tryLinkCheckoutAfterLogin() {
+        if (_linkingCheckout) return Promise.resolve();
+        if (!window.ReadEdyBilling || !ReadEdyBilling.getCheckoutToken()) return Promise.resolve();
+        if (!isLoggedIn()) return Promise.resolve();
+        _linkingCheckout = true;
+        return ReadEdyBilling.linkAfterAuth().catch(function(err) {
+            console.warn('link-subscription', err);
+        }).then(function() {
+            _linkingCheckout = false;
+        });
     }
 
     function init(sb) {
         client = sb;
-        if (!client || _bound) return Promise.resolve(session);
+        if (!client || _bound) {
+            return Promise.resolve(session).then(function() {
+                return tryLinkCheckoutAfterLogin().then(function() { return session; });
+            });
+        }
         _bound = true;
 
         return client.auth.getSession().then(function(res) {
@@ -42,7 +70,12 @@ window.ReadEdyAuth = (function() {
             client.auth.onAuthStateChange(function(_event, newSession) {
                 session = newSession;
                 notify();
+                if (newSession && window.ReadEdyBilling) {
+                    tryLinkCheckoutAfterLogin();
+                }
             });
+            return tryLinkCheckoutAfterLogin();
+        }).then(function() {
             return session;
         });
     }
@@ -120,6 +153,7 @@ window.ReadEdyAuth = (function() {
         signInWithGoogle: signInWithGoogle,
         signInWithEmail: signInWithEmail,
         signOut: signOut,
-        logSessionStart: logSessionStart
+        logSessionStart: logSessionStart,
+        tryLinkCheckoutAfterLogin: tryLinkCheckoutAfterLogin
     };
 })();

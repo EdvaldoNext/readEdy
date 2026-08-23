@@ -17,25 +17,16 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization") || "";
-    const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
-    if (!jwt) return json({ error: "Unauthorized" }, 401);
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const mpToken = Deno.env.get("MERCADOPAGO_ACCESS_TOKEN");
     if (!mpToken) return json({ error: "Mercado Pago não configurado" }, 503);
 
-    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: `Bearer ${jwt}` } },
-    });
-    const { data: userData, error: userErr } = await userClient.auth.getUser();
-    if (userErr || !userData.user) return json({ error: "Unauthorized" }, 401);
-
     const body = await req.json().catch(() => ({}));
-    const planSlug = String(body.plan_slug || "pro_monthly");
-
+    const planSlug = String(body.plan_slug || "basic_monthly");
     const admin = createClient(supabaseUrl, serviceKey);
+
     const { data: plan, error: planErr } = await admin
       .from("plans")
       .select("id, slug, name, price_brl, billing_interval")
@@ -43,12 +34,47 @@ Deno.serve(async (req: Request) => {
       .eq("active", true)
       .single();
     if (planErr || !plan) return json({ error: "Plano inválido" }, 400);
-    if (plan.slug === "trial") return json({ error: "Trial é automático no cadastro" }, 400);
+    if (plan.slug === "trial") return json({ error: "Plano trial indisponível" }, 400);
 
-    const user = userData.user;
-    const backUrl = String(body.back_url || Deno.env.get("READEDY_APP_URL") || "https://readedy.vercel.app");
-    const frequencyType = plan.billing_interval === "year" ? "months" : "months";
+    const authHeader = req.headers.get("Authorization") || "";
+    const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
+    let userId: string | null = null;
+    let payerEmail: string | null = body.payer_email
+      ? String(body.payer_email).trim()
+      : null;
+
+    if (jwt && jwt !== anonKey) {
+      const userClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: `Bearer ${jwt}` } },
+      });
+      const { data: userData, error: userErr } = await userClient.auth.getUser();
+      if (!userErr && userData.user) {
+        userId = userData.user.id;
+        payerEmail = payerEmail || userData.user.email || null;
+      }
+    }
+
+    const checkoutToken = crypto.randomUUID();
+    const appBase = String(
+      body.back_url || Deno.env.get("READEDY_APP_URL") || "https://readedy.vercel.app",
+    ).replace(/\/?$/, "");
+    const backUrl = `${appBase}/?checkout=${checkoutToken}&tab=conta`;
+
     const frequency = plan.billing_interval === "year" ? 12 : 1;
+
+    const mpBody: Record<string, unknown> = {
+      reason: `ReadEdy — ${plan.name}`,
+      external_reference: checkoutToken,
+      auto_recurring: {
+        frequency,
+        frequency_type: "months",
+        transaction_amount: Number(plan.price_brl),
+        currency_id: "BRL",
+      },
+      back_url: backUrl,
+      status: "pending",
+    };
+    if (payerEmail) mpBody.payer_email = payerEmail;
 
     const mpResp = await fetch("https://api.mercadopago.com/preapproval", {
       method: "POST",
@@ -56,19 +82,7 @@ Deno.serve(async (req: Request) => {
         Authorization: `Bearer ${mpToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        reason: `ReadEdy — ${plan.name}`,
-        external_reference: user.id,
-        payer_email: user.email,
-        auto_recurring: {
-          frequency,
-          frequency_type: frequencyType,
-          transaction_amount: Number(plan.price_brl),
-          currency_id: "BRL",
-        },
-        back_url: backUrl,
-        status: "pending",
-      }),
+      body: JSON.stringify(mpBody),
     });
 
     const mpData = await mpResp.json();
@@ -77,33 +91,70 @@ Deno.serve(async (req: Request) => {
       return json({ error: mpData.message || "Erro Mercado Pago" }, 502);
     }
 
-    const { data: existingSub } = await admin
-      .from("subscriptions")
+    const { data: checkoutRow, error: checkoutErr } = await admin
+      .from("checkout_sessions")
+      .insert({
+        token: checkoutToken,
+        plan_id: plan.id,
+        payer_email: payerEmail,
+        mp_preapproval_id: String(mpData.id),
+        status: "pending",
+        user_id: userId,
+      })
       .select("id")
-      .eq("user_id", user.id)
-      .maybeSingle();
+      .single();
+
+    if (checkoutErr || !checkoutRow) {
+      console.error("[create-subscription] checkout_sessions", checkoutErr);
+      return json({ error: "Erro ao criar sessão de checkout" }, 500);
+    }
 
     const subPayload = {
-      user_id: user.id,
+      user_id: userId,
       plan_id: plan.id,
       status: "pending",
       mp_preapproval_id: String(mpData.id),
+      checkout_session_id: checkoutRow.id,
       current_period_end: null,
       trial_ends_at: null,
       updated_at: new Date().toISOString(),
     };
 
-    const { error: subErr } = existingSub
-      ? await admin.from("subscriptions").update(subPayload).eq("id", existingSub.id)
-      : await admin.from("subscriptions").insert(subPayload);
+    if (userId) {
+      const { data: existingSub } = await admin
+        .from("subscriptions")
+        .select("id")
+        .eq("user_id", userId)
+        .in("status", ["pending", "active", "past_due"])
+        .maybeSingle();
 
-    if (subErr) {
-      console.error("[create-subscription] subscriptions", subErr);
-      return json({ error: "Erro ao gravar assinatura" }, 500);
+      const { error: subErr } = existingSub
+        ? await admin.from("subscriptions").update(subPayload).eq("id", existingSub.id)
+        : await admin.from("subscriptions").insert(subPayload);
+
+      if (subErr) {
+        console.error("[create-subscription] subscriptions", subErr);
+        return json({ error: "Erro ao gravar assinatura" }, 500);
+      }
+    } else {
+      const { data: newSub, error: subErr } = await admin
+        .from("subscriptions")
+        .insert(subPayload)
+        .select("id")
+        .single();
+      if (subErr || !newSub) {
+        console.error("[create-subscription] subscriptions", subErr);
+        return json({ error: "Erro ao gravar assinatura" }, 500);
+      }
+      await admin
+        .from("checkout_sessions")
+        .update({ subscription_id: newSub.id })
+        .eq("id", checkoutRow.id);
     }
 
     return json({
       init_point: mpData.init_point,
+      checkout_token: checkoutToken,
       preapproval_id: mpData.id,
     });
   } catch (err) {

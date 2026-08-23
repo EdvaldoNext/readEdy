@@ -23,7 +23,7 @@
     <script src="config.js"></script>
     <!-- ?v= força o navegador/CDN a buscar a versão nova a cada deploy.
          Ao alterar css/app.css ou js/app.js, incremente este valor. -->
-    <link rel="stylesheet" href="./css/app.css?v=20260823a">
+    <link rel="stylesheet" href="./css/app.css?v=20260824a">
 </head>
 <body>
 
@@ -289,13 +289,13 @@
                 </div>
                 <div class="home-books-scroll" id="home-books-carousel" role="list"></div>
             </section>
-            <section class="home-pro-banner home-pro-banner--inicio" aria-label="ReadEdy Pro">
+            <section class="home-pro-banner home-pro-banner--inicio sidebar-premium-btn" aria-label="Assinar ReadEdy" role="button" tabindex="0">
                 <svg class="home-pro-icon ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="5"/><path d="M8.5 13.5L7 22l5-2.6L17 22l-1.5-8.5"/></svg>
                 <div class="home-pro-text">
-                    <strong>Experimente ReadEdy Pro grátis</strong>
-                    <span>TTS ilimitado · Nuvem · OCR</span>
+                    <strong>Assine e desbloqueie a nuvem</strong>
+                    <span>TTS na nuvem · OCR · sincronização</span>
                 </div>
-                <span class="home-pro-badge">30 dias</span>
+                <span class="home-pro-badge">a partir de R$ 9,99</span>
             </section>
         </div>
         <div class="home-tab-panel hidden" id="home-tab-biblioteca" data-home-tab="biblioteca">
@@ -427,16 +427,46 @@
                 </div>
                 <h2 class="home-account-name" id="home-account-name">ReadEdy</h2>
                 <p class="home-account-sub" id="home-account-cloud-status">Nuvem a ligar…</p>
-                <p class="home-account-sub" id="home-account-plan-status">Trial de 30 dias ao criar conta</p>
+                <p class="home-account-sub" id="home-account-plan-status">Escolha um plano para usar a nuvem</p>
+                <p class="home-account-sub hidden" id="home-account-usage-status"></p>
             </div>
+
             <div id="home-auth-guest" class="home-auth-panel">
-                <p class="home-auth-lead">Entre para sincronizar PDFs, TTS na nuvem e OCR. Novos usuários ganham 30 dias grátis.</p>
-                <button type="button" class="home-account-btn home-auth-btn-primary" id="home-btn-auth-google">Entrar com Google</button>
-                <form id="home-auth-email-form" class="home-auth-email-form">
+                <p class="home-auth-lead">Assine para sincronizar PDFs, TTS na nuvem e OCR. Leitura local continua gratuita.</p>
+                <div class="home-plan-cards">
+                    <article class="home-plan-card">
+                        <h3 class="home-plan-name">Básico</h3>
+                        <p class="home-plan-price">R$ 9,99<span>/mês</span></p>
+                        <ul class="home-plan-features">
+                            <li>Até 3 PDFs na nuvem</li>
+                            <li>45 MB de armazenamento</li>
+                            <li>TTS na nuvem e OCR</li>
+                        </ul>
+                        <button type="button" class="home-account-btn home-auth-btn-primary" id="home-btn-plan-basic" data-plan="basic_monthly">Assinar Básico</button>
+                    </article>
+                    <article class="home-plan-card home-plan-card--premium">
+                        <h3 class="home-plan-name">Premium</h3>
+                        <p class="home-plan-price">R$ 19,99<span>/mês</span></p>
+                        <ul class="home-plan-features">
+                            <li>Até 10 PDFs na nuvem</li>
+                            <li>120 MB de armazenamento</li>
+                            <li>TTS na nuvem e OCR</li>
+                        </ul>
+                        <button type="button" class="home-account-btn" id="home-btn-plan-premium" data-plan="premium_monthly">Assinar Premium</button>
+                    </article>
+                </div>
+                <button type="button" class="home-auth-recover-toggle" id="home-btn-recover-toggle">Recuperar acesso por e-mail</button>
+                <form id="home-auth-email-form" class="home-auth-email-form hidden">
                     <input type="email" id="home-auth-email-input" class="home-auth-email-input" placeholder="Seu e-mail" required>
-                    <button type="submit" class="home-account-btn">Receber link de acesso</button>
+                    <button type="submit" class="home-account-btn">Enviar link de recuperação</button>
                 </form>
             </div>
+
+            <div id="home-auth-postpay" class="home-auth-panel hidden">
+                <p class="home-auth-lead home-auth-lead--success">Pagamento recebido! Vincule sua conta Google para liberar o acesso.</p>
+                <button type="button" class="home-account-btn home-auth-btn-primary" id="home-btn-link-google">Vincular com Google</button>
+            </div>
+
             <div id="home-auth-user" class="home-auth-panel hidden">
                 <button type="button" class="home-account-btn" id="home-btn-manage-subscription">Gerenciar assinatura</button>
                 <button type="button" class="home-account-btn" id="home-btn-signout">Sair da conta</button>
@@ -473,13 +503,13 @@
                     Abrir PDF local
                 </button>
             </div>
-            <section class="home-pro-banner home-pro-banner--compact" aria-label="ReadEdy Pro">
+            <section class="home-pro-banner home-pro-banner--compact sidebar-premium-btn" aria-label="Assinar ReadEdy" role="button" tabindex="0">
                 <svg class="home-pro-icon ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="5"/><path d="M8.5 13.5L7 22l5-2.6L17 22l-1.5-8.5"/></svg>
                 <div class="home-pro-text">
-                    <strong>ReadEdy Pro</strong>
-                    <span>TTS ilimitado · Nuvem · OCR</span>
+                    <strong>Assine e desbloqueie a nuvem</strong>
+                    <span>TTS na nuvem · OCR · sincronização</span>
                 </div>
-                <span class="home-pro-badge">30 dias</span>
+                <span class="home-pro-badge">R$ 9,99</span>
             </section>
         </div>
     </div>
@@ -612,7 +642,7 @@
 </div>
 
 <script src="./js/auth.js?v=20260823a"></script>
-<script src="./js/billing.js?v=20260823a"></script>
-<script src="./js/app.js?v=20260823a"></script>
+<script src="./js/billing.js?v=20260824a"></script>
+<script src="./js/app.js?v=20260824a"></script>
 </body>
 </html>

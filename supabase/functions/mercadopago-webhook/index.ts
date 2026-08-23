@@ -84,7 +84,7 @@ async function syncPreapproval(
     pending: "pending",
   };
   const status = statusMap[String(pre.status)] || "pending";
-  const userId = pre.external_reference || pre.payer_id;
+  const checkoutToken = pre.external_reference ? String(pre.external_reference) : null;
 
   const update: Record<string, unknown> = {
     status,
@@ -105,11 +105,17 @@ async function syncPreapproval(
     .update(update)
     .eq("mp_preapproval_id", String(pre.id));
 
-  if (userId && !pre.external_reference) {
+  if (checkoutToken && status === "active") {
+    const checkoutUpdate: Record<string, unknown> = {
+      status: "paid",
+      mp_preapproval_id: String(pre.id),
+      updated_at: new Date().toISOString(),
+    };
+    if (pre.payer_email) checkoutUpdate.payer_email = pre.payer_email;
     await admin
-      .from("subscriptions")
-      .update(update)
-      .eq("user_id", userId);
+      .from("checkout_sessions")
+      .update(checkoutUpdate)
+      .eq("token", checkoutToken);
   }
 }
 
