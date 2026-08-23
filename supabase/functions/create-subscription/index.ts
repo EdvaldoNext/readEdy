@@ -54,6 +54,32 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    if (!payerEmail) {
+      return json(
+        { error: "Informe o e-mail da sua conta Mercado Pago para assinar." },
+        400,
+      );
+    }
+
+    // O Mercado Pago recusa assinaturas em que o pagador é a própria conta que
+    // recebe (collector). Sem esta checagem o checkout abre e o botão
+    // "Confirmar" fica desabilitado sem nenhuma mensagem para o usuário.
+    const meResp = await fetch("https://api.mercadopago.com/users/me", {
+      headers: { Authorization: `Bearer ${mpToken}` },
+    });
+    if (meResp.ok) {
+      const me = await meResp.json();
+      const collectorEmail = String(me.email || "").toLowerCase();
+      if (collectorEmail && collectorEmail === payerEmail.toLowerCase()) {
+        return json({
+          error:
+            "O Mercado Pago não permite assinar com a mesma conta que recebe os pagamentos (" +
+            payerEmail +
+            "). Use outro e-mail/conta Mercado Pago para pagar.",
+        }, 409);
+      }
+    }
+
     const checkoutToken = crypto.randomUUID();
     const appBase = String(
       body.back_url || Deno.env.get("READEDY_APP_URL") || "https://readedy.vercel.app",
@@ -74,7 +100,7 @@ Deno.serve(async (req: Request) => {
       back_url: backUrl,
       status: "pending",
     };
-    if (payerEmail) mpBody.payer_email = payerEmail;
+    mpBody.payer_email = payerEmail;
 
     const mpResp = await fetch("https://api.mercadopago.com/preapproval", {
       method: "POST",

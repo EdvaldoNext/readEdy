@@ -3641,6 +3641,9 @@
             align-self: flex-start;
             padding: 4px 0;
         }
+        .home-plan-email-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+        .home-plan-email-label { font-size: 0.82rem; color: var(--home-text); font-weight: 600; }
+        .home-plan-email-hint { margin: 0; font-size: 0.76rem; color: var(--home-muted); line-height: 1.4; }
         .home-plan-cards {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

@@ -5296,10 +5296,28 @@ var safeStorage = (function() {
         }).catch(function() {});
     }
 
+    function getCheckoutEmail() {
+        var input = document.getElementById('home-plan-email');
+        var typed = input ? String(input.value || '').trim() : '';
+        if (typed) return typed;
+        if (window.ReadEdyAuth && ReadEdyAuth.isLoggedIn()) {
+            var user = ReadEdyAuth.getUser();
+            if (user && user.email) return user.email;
+        }
+        return '';
+    }
+
     function startPlanCheckout(planSlug) {
         if (!window.ReadEdyBilling) return;
+        var email = getCheckoutEmail();
+        if (!email || email.indexOf('@') < 1) {
+            showNotification('Informe o e-mail da sua conta Mercado Pago para assinar.', true);
+            var input = document.getElementById('home-plan-email');
+            if (input) input.focus();
+            return;
+        }
         setAppLoading(true, 'A abrir checkout…');
-        ReadEdyBilling.startCheckout(planSlug).catch(function(err) {
+        ReadEdyBilling.startCheckout(planSlug, email).catch(function(err) {
             showNotification(err.message || String(err), true);
         }).then(function() {
             setAppLoading(false);
@@ -5352,6 +5370,10 @@ var safeStorage = (function() {
         if (authUser) {
             if (loggedIn && active && !needsLink) authUser.classList.remove('hidden');
             else authUser.classList.add('hidden');
+        }
+        var planEmail = document.getElementById('home-plan-email');
+        if (planEmail && !planEmail.value && loggedIn && user && user.email) {
+            planEmail.value = user.email;
         }
         var signoutLogged = document.getElementById('home-btn-signout-logged');
         if (signoutLogged) {
