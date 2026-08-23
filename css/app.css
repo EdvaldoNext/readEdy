@@ -1480,6 +1480,7 @@
             border-radius: 14px;
             padding: 14px 16px;
             margin-bottom: 8px;
+            cursor: pointer;
         }
         .home-pro-banner--compact { margin-top: 20px; }
         .home-pro-icon { width: 28px; height: 28px; }
@@ -3613,3 +3614,18 @@
             .topbar-mobile-brand-icon { width: 32px; height: 32px; }
             .topbar-search { min-height: 36px; height: 36px; font-size: 0.8rem; padding-left: 30px; }
         }
+
+        .home-auth-panel { margin: 16px 0; display: -webkit-box; display: -webkit-flex; display: -ms-flexbox; display: flex; -webkit-box-orient: vertical; -webkit-box-direction: normal; -webkit-flex-direction: column; -ms-flex-direction: column; flex-direction: column; gap: 10px; }
+        .home-auth-lead { margin: 0 0 8px; font-size: 0.86rem; color: var(--home-muted); line-height: 1.45; }
+        .home-auth-email-form { display: -webkit-box; display: -webkit-flex; display: -ms-flexbox; display: flex; gap: 8px; -webkit-flex-wrap: wrap; -ms-flex-wrap: wrap; flex-wrap: wrap; }
+        .home-auth-email-input {
+            -webkit-box-flex: 1; -webkit-flex: 1; -ms-flex: 1; flex: 1;
+            min-width: 180px;
+            min-height: 42px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.04);
+            color: var(--home-text);
+            padding: 0 12px;
+        }
+        .home-auth-btn-primary { background: linear-gradient(135deg, #6c8cff, #4f6ef7); color: #fff; border: none; font-weight: 600; }

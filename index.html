@@ -82,7 +82,7 @@
     <div class="sidebar-premium" aria-label="ReadEdy Premium">
         <strong>ReadEdy Premium</strong>
         <p>TTS ilimitado · Nuvem · OCR</p>
-        <button type="button" class="sidebar-premium-btn">Seja Premium</button>
+        <button type="button" class="sidebar-premium-btn" id="sidebar-premium-btn">Seja Premium</button>
     </div>
 </aside>
 
@@ -425,8 +425,21 @@
                 <div class="home-account-avatar" aria-hidden="true">
                     <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.5 3.1-5.6 7-5.6s7 2.1 7 5.6"/></svg>
                 </div>
-                <h2 class="home-account-name">ReadEdy</h2>
+                <h2 class="home-account-name" id="home-account-name">ReadEdy</h2>
                 <p class="home-account-sub" id="home-account-cloud-status">Nuvem a ligar…</p>
+                <p class="home-account-sub" id="home-account-plan-status">Trial de 30 dias ao criar conta</p>
+            </div>
+            <div id="home-auth-guest" class="home-auth-panel">
+                <p class="home-auth-lead">Entre para sincronizar PDFs, TTS na nuvem e OCR. Novos usuários ganham 30 dias grátis.</p>
+                <button type="button" class="home-account-btn home-auth-btn-primary" id="home-btn-auth-google">Entrar com Google</button>
+                <form id="home-auth-email-form" class="home-auth-email-form">
+                    <input type="email" id="home-auth-email-input" class="home-auth-email-input" placeholder="Seu e-mail" required>
+                    <button type="submit" class="home-account-btn">Receber link de acesso</button>
+                </form>
+            </div>
+            <div id="home-auth-user" class="home-auth-panel hidden">
+                <button type="button" class="home-account-btn" id="home-btn-manage-subscription">Gerenciar assinatura</button>
+                <button type="button" class="home-account-btn" id="home-btn-signout">Sair da conta</button>
             </div>
             <div class="home-account-mobile-nav" aria-label="Mais opções">
                 <button type="button" class="home-account-btn home-nav-item" data-home-nav="favoritos">
@@ -598,6 +611,8 @@
 
 </div>
 
+<script src="./js/auth.js?v=20260823a"></script>
+<script src="./js/billing.js?v=20260823a"></script>
 <script src="./js/app.js?v=20260823a"></script>
 </body>
 </html>

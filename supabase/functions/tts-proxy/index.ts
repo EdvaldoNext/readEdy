@@ -9,9 +9,11 @@
  *   5. edge-tts-universal (Microsoft Edge)
  *   6. WebSocket Edge manual (backup se o pacote npm falhar)
  *
- * GET ?text=&voice=&rate=  →  audio/mpeg 200
+ * GET ?text=&voice=&rate=&access_token=  →  audio/mpeg 200
  * POST { text, voice, rate }  →  audio/mpeg 200
  */
+
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -34,6 +36,81 @@ const WSS_BASE =
 
 let clockSkewSeconds = 0;
 
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_MAX = 60;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+function extractJwt(req: Request, url?: URL): string | null {
+  const auth = req.headers.get("Authorization") || "";
+  if (auth.startsWith("Bearer ")) {
+    const token = auth.slice(7).trim();
+    if (token && token.includes(".")) return token;
+  }
+  if (url) {
+    const q = url.searchParams.get("access_token") || url.searchParams.get("authorization");
+    if (q) return q;
+  }
+  return null;
+}
+
+async function authorizeTts(req: Request, url: URL) {
+  const jwt = extractJwt(req, url);
+  if (!jwt) {
+    return { ok: false as const, status: 401, error: "Login required for cloud TTS" };
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: `Bearer ${jwt}` } },
+  });
+  const { data: userData, error: userErr } = await userClient.auth.getUser();
+  if (userErr || !userData.user) {
+    return { ok: false as const, status: 401, error: "Invalid session" };
+  }
+
+  const userId = userData.user.id;
+  const now = Date.now();
+  const bucket = rateLimitMap.get(userId);
+  if (!bucket || bucket.resetAt <= now) {
+    rateLimitMap.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+  } else {
+    bucket.count += 1;
+    if (bucket.count > RATE_LIMIT_MAX) {
+      return { ok: false as const, status: 429, error: "TTS rate limit exceeded" };
+    }
+  }
+
+  const admin = createClient(supabaseUrl, serviceKey);
+  const { data: active, error: subErr } = await admin.rpc("is_subscription_active", {
+    p_user_id: userId,
+  });
+  if (subErr) {
+    console.error("[tts-proxy] subscription check", subErr);
+    return { ok: false as const, status: 503, error: "Subscription check failed" };
+  }
+  if (!active) {
+    return { ok: false as const, status: 402, error: "Subscription inactive" };
+  }
+
+  return { ok: true as const, userId, admin };
+}
+
+function logTtsUsage(
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+  voice: string,
+  chars: number,
+) {
+  admin.from("usage_logs").insert({
+    user_id: userId,
+    event_type: "tts_request",
+    metadata: { voice, chars },
+  }).then(() => {}, (err: unknown) => console.warn("[tts-proxy] usage_logs", err));
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: CORS });
@@ -42,14 +119,16 @@ Deno.serve(async (req: Request) => {
   let text = "";
   let voice = DEFAULT_VOICE;
   let rate = 1.0;
+  let requestUrl: URL | null = null;
 
   try {
     if (req.method === "GET") {
-      const url = new URL(req.url);
-      text = (url.searchParams.get("text") || "").trim();
-      voice = url.searchParams.get("voice") || DEFAULT_VOICE;
-      rate = clampRate(Number(url.searchParams.get("rate") || "1.0"));
+      requestUrl = new URL(req.url);
+      text = (requestUrl.searchParams.get("text") || "").trim();
+      voice = requestUrl.searchParams.get("voice") || DEFAULT_VOICE;
+      rate = clampRate(Number(requestUrl.searchParams.get("rate") || "1.0"));
     } else if (req.method === "POST") {
+      requestUrl = new URL(req.url);
       const body = await req.json();
       text = String(body.text ?? "").trim();
       voice = String(body.voice ?? DEFAULT_VOICE);
@@ -61,11 +140,17 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    const auth = await authorizeTts(req, requestUrl!);
+    if (!auth.ok) {
+      return jsonError(auth.error, auth.status);
+    }
+
     if (!text) {
       return jsonError("text is required", 400);
     }
 
     const sendText = text.length > MAX_CHARS ? text.slice(0, MAX_CHARS) : text;
+    logTtsUsage(auth.admin, auth.userId, voice, sendText.length);
     const audioData = await synthesizeWithFallback(sendText, voice, rate);
 
     return new Response(audioData, {

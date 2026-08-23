@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReadEdy Admin</title>
+    <link rel="stylesheet" href="./css/admin.css">
+    <script src="../libs/supabase.min.js"></script>
+    <script src="../config.js"></script>
+</head>
+<body>
+    <div id="admin-app">
+        <header class="admin-header">
+            <h1>ReadEdy Admin</h1>
+            <div id="admin-user-bar" class="admin-user-bar hidden">
+                <span id="admin-user-email"></span>
+                <button type="button" id="admin-btn-signout">Sair</button>
+            </div>
+        </header>
+
+        <section id="admin-login" class="admin-card">
+            <h2>Acesso administrativo</h2>
+            <p>Entre com uma conta que tenha role <code>admin</code> no Supabase.</p>
+            <button type="button" id="admin-btn-google" class="admin-btn admin-btn-primary">Entrar com Google</button>
+            <form id="admin-email-form" class="admin-email-form">
+                <input type="email" id="admin-email" placeholder="E-mail" required>
+                <button type="submit" class="admin-btn">Magic link</button>
+            </form>
+            <p id="admin-login-msg" class="admin-msg"></p>
+        </section>
+
+        <main id="admin-dashboard" class="hidden">
+            <div class="admin-grid">
+                <article class="admin-stat">
+                    <h3>Usuários (profiles)</h3>
+                    <p id="stat-profiles" class="admin-stat-value">—</p>
+                </article>
+                <article class="admin-stat">
+                    <h3>Sessões (7 dias)</h3>
+                    <p id="stat-sessions" class="admin-stat-value">—</p>
+                </article>
+                <article class="admin-stat">
+                    <h3>Pedidos TTS (7 dias)</h3>
+                    <p id="stat-tts" class="admin-stat-value">—</p>
+                </article>
+                <article class="admin-stat">
+                    <h3>Assinaturas ativas</h3>
+                    <p id="stat-active-subs" class="admin-stat-value">—</p>
+                </article>
+                <article class="admin-stat">
+                    <h3>MRR estimado (R$)</h3>
+                    <p id="stat-mrr" class="admin-stat-value">—</p>
+                </article>
+                <article class="admin-stat">
+                    <h3>Documentos na nuvem</h3>
+                    <p id="stat-docs" class="admin-stat-value">—</p>
+                </article>
+            </div>
+
+            <section class="admin-card">
+                <h2>Atividade diária</h2>
+                <div class="admin-table-wrap">
+                    <table class="admin-table" id="admin-daily-table">
+                        <thead><tr><th>Dia</th><th>DAU</th><th>Sessões</th><th>TTS</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="admin-card">
+                <h2>Assinaturas por plano</h2>
+                <div class="admin-table-wrap">
+                    <table class="admin-table" id="admin-subs-table">
+                        <thead><tr><th>Plano</th><th>Status</th><th>Total</th><th>Preço</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <p id="admin-denied" class="admin-denied hidden">Esta conta não tem permissão de administrador.</p>
+    </div>
+    <script src="../js/auth.js"></script>
+    <script src="./js/admin.js"></script>
+</body>
+</html>
