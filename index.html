@@ -23,7 +23,7 @@
     <script src="config.js" onerror="void 0"></script>
     <!-- ?v= força o navegador/CDN a buscar a versão nova a cada deploy.
          Ao alterar css/app.css ou js/app.js, incremente este valor. -->
-    <link rel="stylesheet" href="./css/app.css?v=20260822v">
+    <link rel="stylesheet" href="./css/app.css?v=20260823a">
 </head>
 <body>
 
@@ -46,6 +46,9 @@
     <div class="sidebar-brand">
         <img class="sidebar-brand-icon" src="./docs/mockups/favicon-logo.png" alt="" width="36" height="36" decoding="async">
         <span class="sidebar-brand-text">ReadEdy</span>
+        <button type="button" class="sidebar-close-btn" id="btn-mobile-menu-close" aria-label="Fechar menu">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
     </div>
     <nav class="sidebar-nav" aria-label="Navegação">
         <button type="button" class="sidebar-nav-item home-nav-item is-active" data-home-nav="inicio" aria-current="page">
@@ -85,6 +88,13 @@
 
 <div class="app-shell">
 <header class="app-topbar" aria-label="Barra superior">
+    <button type="button" class="topbar-menu-btn" id="btn-mobile-menu" aria-label="Abrir menu" aria-expanded="false" aria-controls="app-sidebar">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <div class="topbar-mobile-brand">
+        <img class="topbar-mobile-brand-icon" src="./docs/mockups/favicon-logo.png" alt="ReadEdy" width="36" height="36" decoding="async">
+        <span class="topbar-mobile-brand-text" aria-hidden="true">ReadEdy</span>
+    </div>
     <div class="topbar-search-wrap">
         <svg class="ico topbar-search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg>
         <input type="search" id="home-search" class="topbar-search" placeholder="Buscar livros, autores, temas..." autocomplete="off" aria-label="Buscar livros">
@@ -210,20 +220,29 @@
                             <div class="home-continue-progress-track"><div class="home-continue-progress-fill" id="home-continue-progress-fill"></div></div>
                             <span class="home-continue-pct" id="home-continue-pct"></span>
                             <div class="home-continue-actions">
-                                <button type="button" class="home-continue-btn" id="home-continue-play" title="Continuar ouvindo" aria-label="Continuar ouvindo">
+                                <button type="button" class="home-continue-btn home-continue-play--desktop" id="home-continue-play-desktop" title="Continuar ouvindo" aria-label="Continuar ouvindo">
                                     <svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
                                     Continuar
                                 </button>
-                                <button type="button" class="home-view-btn" id="home-btn-view-book" title="Ver as páginas do PDF" aria-label="Visualizar livro">
+                                <button type="button" class="home-view-btn home-continue-view--desktop" id="home-btn-view-book" title="Ver as páginas do PDF" aria-label="Visualizar livro">
                                     <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.6"/></svg>
                                     Visualizar livro
                                 </button>
                             </div>
                         </div>
                     </div>
+                    <button type="button" class="home-continue-play home-continue-play--fab" id="home-continue-play" title="Continuar ouvindo" aria-label="Continuar ouvindo">
+                        <svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                    </button>
                     <div class="home-continue-art" aria-hidden="true">
                         <img class="home-continue-art-img" src="./docs/mockups/livro.png" alt="" width="320" height="240" loading="lazy" decoding="async">
                     </div>
+                </div>
+                <div class="home-continue-foot hidden" id="home-continue-foot">
+                    <button type="button" class="home-view-btn home-continue-view--mobile" id="home-btn-view-book-mobile" title="Ver as páginas do PDF" aria-label="Visualizar livro">
+                        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.6"/></svg>
+                        Visualizar livro
+                    </button>
                 </div>
                 <div class="home-continue-empty" id="home-continue-empty">
                     <p>Nenhum livro por aqui ainda.</p>
@@ -231,14 +250,14 @@
                 </div>
             </section>
             <div class="home-quick-actions">
-                <button type="button" class="home-quick-card" id="home-btn-open-pdf">
+                <button type="button" class="home-quick-card home-quick-card--outline" id="home-btn-open-pdf">
                     <span class="home-quick-icon">
                         <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
                     </span>
                     <strong>Abrir PDF</strong>
                     <span class="home-quick-desc">Selecione um arquivo do seu dispositivo</span>
                 </button>
-                <button type="button" class="home-quick-card" id="home-btn-cloud">
+                <button type="button" class="home-quick-card home-quick-card--filled" id="home-btn-cloud">
                     <span class="home-quick-icon">
                         <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H7a4 4 0 0 1-.5-7.97A5.5 5.5 0 0 1 17.4 10a4.5 4.5 0 0 1 .1 9z"/></svg>
                     </span>
@@ -269,6 +288,14 @@
                     </div>
                 </div>
                 <div class="home-books-scroll" id="home-books-carousel" role="list"></div>
+            </section>
+            <section class="home-pro-banner home-pro-banner--inicio" aria-label="ReadEdy Pro">
+                <svg class="home-pro-icon ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="5"/><path d="M8.5 13.5L7 22l5-2.6L17 22l-1.5-8.5"/></svg>
+                <div class="home-pro-text">
+                    <strong>Experimente ReadEdy Pro grátis</strong>
+                    <span>TTS ilimitado · Nuvem · OCR</span>
+                </div>
+                <span class="home-pro-badge">30 dias</span>
             </section>
         </div>
         <div class="home-tab-panel hidden" id="home-tab-biblioteca" data-home-tab="biblioteca">
@@ -401,6 +428,24 @@
                 <h2 class="home-account-name">ReadEdy</h2>
                 <p class="home-account-sub" id="home-account-cloud-status">Nuvem a ligar…</p>
             </div>
+            <div class="home-account-mobile-nav" aria-label="Mais opções">
+                <button type="button" class="home-account-btn home-nav-item" data-home-nav="favoritos">
+                    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.4 5.8L21 10l-4.5 4.2L17.5 21 12 18l-5.5 3 1-6.8L3 10l6.6-1.2z"/></svg>
+                    Favoritos
+                </button>
+                <button type="button" class="home-account-btn home-nav-item" data-home-nav="anotacoes">
+                    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+                    Anotações
+                </button>
+                <button type="button" class="home-account-btn home-nav-item" data-home-nav="estatisticas">
+                    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9M12 19V5M19 19v-7"/></svg>
+                    Estatísticas
+                </button>
+                <button type="button" class="home-account-btn home-nav-item" data-home-nav="lixeira">
+                    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 14h8l1-14"/></svg>
+                    Lixeiro
+                </button>
+            </div>
             <div class="home-account-actions">
                 <button type="button" class="home-account-btn" id="home-btn-settings">
                     <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.1a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 1 1 0 4z"/></svg>
@@ -485,9 +530,6 @@
         </button>
     </div>
     <div class="player-center">
-        <button type="button" class="player-ctrl-btn" id="player-shuffle" title="Aleatório" aria-label="Aleatório" disabled>
-            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
-        </button>
         <button type="button" class="player-ctrl-btn" id="player-prev" title="Página anterior" aria-label="Página anterior">
             <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
         </button>
@@ -497,13 +539,11 @@
         <button type="button" class="player-ctrl-btn" id="player-next" title="Próxima página" aria-label="Próxima página">
             <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
         </button>
-        <button type="button" class="player-ctrl-btn" id="player-repeat" title="Repetir" aria-label="Repetir" disabled>
+        <button type="button" class="player-ctrl-btn" id="player-repeat" title="Repetir página" aria-label="Repetir página" aria-pressed="false">
             <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
         </button>
     </div>
     <div class="player-right">
-        <span class="player-speed" id="player-speed-label" title="Velocidade">1.0×</span>
-        <input type="range" class="player-volume" id="player-volume" min="0" max="100" value="100" title="Volume" aria-label="Volume">
         <button type="button" class="player-ctrl-btn" id="player-menu" title="Mais opções" aria-label="Mais opções">
             <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="19" r="1.2" fill="currentColor"/></svg>
         </button>
@@ -512,6 +552,8 @@
 </div>
 
 </div><!-- .app-shell -->
+
+<div id="mobile-nav-backdrop" class="mobile-nav-backdrop" aria-hidden="true"></div>
 
 <nav id="home-bottom-nav" class="home-bottom-nav home-bottom-nav--mobile" aria-label="Navegação principal">
     <button type="button" class="home-nav-item is-active" data-home-nav="inicio" aria-current="page">
@@ -556,6 +598,6 @@
 
 </div>
 
-<script src="./js/app.js?v=20260822v"></script>
+<script src="./js/app.js?v=20260823a"></script>
 </body>
 </html>
