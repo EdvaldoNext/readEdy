@@ -1,0 +1,106 @@
+# Evita pausa do projeto Supabase (free tier) após ~7 dias sem atividade.
+#
+# Secrets (GitHub → Settings → Secrets and variables → Actions):
+#   SUPABASE_URL        → https://SEU_REF.supabase.co
+#   SUPABASE_ANON_KEY   → chave anon (publishable)
+#
+# Opcional — reativa automaticamente se já estiver pausado:
+#   SUPABASE_ACCESS_TOKEN → https://supabase.com/dashboard/account/tokens
+#   SUPABASE_PROJECT_REF  → ex.: rxyzqyqsrgscnawetwtl
+
+name: Supabase Keep Alive
+
+on:
+  schedule:
+    # 2× por semana (segunda e quinta, 12:00 UTC) — suficiente para evitar pausa (~7 dias)
+    - cron: "0 12 * * 1,4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Validar secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::Defina SUPABASE_URL e SUPABASE_ANON_KEY em Settings → Secrets → Actions."
+            exit 1
+          fi
+
+      - name: Ping REST API
+        id: ping
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          URL="${SUPABASE_URL%/}/rest/v1/documents?select=id&limit=1"
+          HTTP_CODE=$(curl -sS -o /tmp/supabase-body.txt -w "%{http_code}" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            -H "Accept: application/json" \
+            "$URL" || echo "000")
+
+          echo "HTTP ${HTTP_CODE}"
+          head -c 500 /tmp/supabase-body.txt 2>/dev/null || true
+          echo
+
+          case "$HTTP_CODE" in
+            200|206|401|403)
+              echo "alive=true" >> "$GITHUB_OUTPUT"
+              echo "Projeto Supabase ativo."
+              ;;
+            *)
+              echo "alive=false" >> "$GITHUB_OUTPUT"
+              echo "Projeto inacessível (HTTP ${HTTP_CODE})."
+              ;;
+          esac
+
+      - name: Restaurar projeto pausado
+        if: steps.ping.outputs.alive != 'true'
+        id: restore
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$PROJECT_REF" ]; then
+            echo "attempted=false" >> "$GITHUB_OUTPUT"
+            echo "Restore não configurado (opcional)."
+            exit 0
+          fi
+          echo "attempted=true" >> "$GITHUB_OUTPUT"
+          echo "A pedir restore de ${PROJECT_REF}..."
+          curl -sf -X POST "https://api.supabase.com/v1/projects/${PROJECT_REF}/restore" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json"
+          echo "Aguardando 90s..."
+          sleep 90
+
+      - name: Confirmar após restore
+        if: steps.ping.outputs.alive != 'true' && steps.restore.outputs.attempted == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          URL="${SUPABASE_URL%/}/rest/v1/documents?select=id&limit=1"
+          HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "$URL")
+          echo "HTTP após restore: ${HTTP_CODE}"
+          case "$HTTP_CODE" in
+            200|206|401|403) echo "Projeto restaurado." ;;
+            *) echo "::error::Ainda inacessível (HTTP ${HTTP_CODE})."; exit 1 ;;
+          esac
+
+      - name: Falhar se projeto continuar inacessível
+        if: steps.ping.outputs.alive != 'true' && steps.restore.outputs.attempted != 'true'
+        run: |
+          echo "::error::Supabase inacessível. Configure SUPABASE_ACCESS_TOKEN + SUPABASE_PROJECT_REF para restore automático."
+          exit 1
