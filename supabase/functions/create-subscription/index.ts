@@ -55,29 +55,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!payerEmail) {
-      return json(
-        { error: "Informe o e-mail da sua conta Mercado Pago para assinar." },
-        400,
-      );
-    }
-
-    // O Mercado Pago recusa assinaturas em que o pagador é a própria conta que
-    // recebe (collector). Sem esta checagem o checkout abre e o botão
-    // "Confirmar" fica desabilitado sem nenhuma mensagem para o usuário.
-    const meResp = await fetch("https://api.mercadopago.com/users/me", {
-      headers: { Authorization: `Bearer ${mpToken}` },
-    });
-    if (meResp.ok) {
-      const me = await meResp.json();
-      const collectorEmail = String(me.email || "").toLowerCase();
-      if (collectorEmail && collectorEmail === payerEmail.toLowerCase()) {
-        return json({
-          error:
-            "O Mercado Pago não permite assinar com a mesma conta que recebe os pagamentos (" +
-            payerEmail +
-            "). Use outro e-mail/conta Mercado Pago para pagar.",
-        }, 409);
-      }
+      return json({ error: "Crie sua conta ou entre antes de pagar." }, 400);
     }
 
     const checkoutToken = crypto.randomUUID();
@@ -85,37 +63,58 @@ Deno.serve(async (req: Request) => {
       body.back_url || Deno.env.get("READEDY_APP_URL") || "https://readedy.vercel.app",
     ).replace(/\/?$/, "");
     const backUrl = `${appBase}/?checkout=${checkoutToken}&tab=conta`;
+    const webhookUrl = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/mercadopago-webhook`;
+    const price = Number(plan.price_brl);
 
-    const frequency = plan.billing_interval === "year" ? 12 : 1;
-
-    const mpBody: Record<string, unknown> = {
-      reason: `ReadEdy — ${plan.name}`,
+    const prefBody: Record<string, unknown> = {
+      items: [
+        {
+          id: plan.slug,
+          title: `ReadEdy — ${plan.name} (30 dias)`,
+          description: "Acesso à nuvem, TTS e OCR por 30 dias",
+          quantity: 1,
+          currency_id: "BRL",
+          unit_price: price,
+        },
+      ],
+      payer: { email: payerEmail },
       external_reference: checkoutToken,
-      auto_recurring: {
-        frequency,
-        frequency_type: "months",
-        transaction_amount: Number(plan.price_brl),
-        currency_id: "BRL",
+      back_urls: {
+        success: backUrl,
+        failure: backUrl,
+        pending: backUrl,
       },
-      back_url: backUrl,
-      status: "pending",
+      auto_return: "approved",
+      notification_url: webhookUrl,
+      statement_descriptor: "READEDY",
+      metadata: {
+        checkout_token: checkoutToken,
+        plan_slug: plan.slug,
+        user_id: userId,
+      },
+      payment_methods: {
+        installments: 1,
+      },
     };
-    mpBody.payer_email = payerEmail;
 
-    const mpResp = await fetch("https://api.mercadopago.com/preapproval", {
+    const mpResp = await fetch("https://api.mercadopago.com/checkout/preferences", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${mpToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(mpBody),
+      body: JSON.stringify(prefBody),
     });
 
     const mpData = await mpResp.json();
     if (!mpResp.ok) {
-      console.error("[create-subscription]", mpData);
+      console.error("[create-subscription] preference", mpData);
       return json({ error: mpData.message || "Erro Mercado Pago" }, 502);
     }
+
+    const preferenceId = String(mpData.id || "");
+    const initPoint = mpData.init_point || mpData.sandbox_init_point;
+    if (!initPoint) return json({ error: "Checkout sem URL" }, 502);
 
     const { data: checkoutRow, error: checkoutErr } = await admin
       .from("checkout_sessions")
@@ -123,7 +122,7 @@ Deno.serve(async (req: Request) => {
         token: checkoutToken,
         plan_id: plan.id,
         payer_email: payerEmail,
-        mp_preapproval_id: String(mpData.id),
+        mp_preapproval_id: preferenceId,
         status: "pending",
         user_id: userId,
       })
@@ -139,7 +138,7 @@ Deno.serve(async (req: Request) => {
       user_id: userId,
       plan_id: plan.id,
       status: "pending",
-      mp_preapproval_id: String(mpData.id),
+      mp_preapproval_id: preferenceId,
       checkout_session_id: checkoutRow.id,
       current_period_end: null,
       trial_ends_at: null,
@@ -179,9 +178,9 @@ Deno.serve(async (req: Request) => {
     }
 
     return json({
-      init_point: mpData.init_point,
+      init_point: initPoint,
       checkout_token: checkoutToken,
-      preapproval_id: mpData.id,
+      preference_id: preferenceId,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

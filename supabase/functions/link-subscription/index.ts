@@ -24,6 +24,7 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const mpToken = Deno.env.get("MERCADOPAGO_ACCESS_TOKEN");
 
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: `Bearer ${jwt}` } },
@@ -82,15 +83,24 @@ Deno.serve(async (req: Request) => {
     }
 
     const now = new Date().toISOString();
-    await admin.from("subscriptions").update({
+    const paid = session.status === "paid" || await paymentApproved(mpToken, checkoutToken, session.mp_preapproval_id);
+    const subPatch: Record<string, unknown> = {
       user_id: user.id,
       checkout_session_id: session.id,
       updated_at: now,
-    }).eq("id", subscriptionId);
+    };
+    if (paid) {
+      const end = new Date();
+      end.setMonth(end.getMonth() + 1);
+      subPatch.status = "active";
+      subPatch.current_period_end = end.toISOString();
+    }
+
+    await admin.from("subscriptions").update(subPatch).eq("id", subscriptionId);
 
     await admin.from("checkout_sessions").update({
       user_id: user.id,
-      status: "linked",
+      status: paid ? "linked" : session.status,
       updated_at: now,
     }).eq("id", session.id);
 
@@ -109,6 +119,33 @@ Deno.serve(async (req: Request) => {
     return json({ error: msg }, 500);
   }
 });
+
+async function paymentApproved(
+  mpToken: string | undefined,
+  checkoutToken: string,
+  preferenceId: string | null,
+): Promise<boolean> {
+  if (!mpToken) return false;
+  const qs = new URLSearchParams({
+    external_reference: checkoutToken,
+    sort: "date_created",
+    criteria: "desc",
+  });
+  const resp = await fetch(
+    `https://api.mercadopago.com/v1/payments/search?${qs.toString()}`,
+    { headers: { Authorization: `Bearer ${mpToken}` } },
+  );
+  if (!resp.ok) return false;
+  const data = await resp.json();
+  const results = Array.isArray(data.results) ? data.results : [];
+  return results.some((p: { status?: string; preference_id?: string }) => {
+    if (p.status !== "approved") return false;
+    if (preferenceId && p.preference_id && String(p.preference_id) !== String(preferenceId)) {
+      return false;
+    }
+    return true;
+  });
+}
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {

@@ -21,7 +21,8 @@ Deno.serve(async (req: Request) => {
     const payload = rawBody ? JSON.parse(rawBody) : {};
 
     const webhookSecret = Deno.env.get("MERCADOPAGO_WEBHOOK_SECRET");
-    if (webhookSecret && !verifyMpSignature(req, rawBody, webhookSecret)) {
+    const hasSignature = !!req.headers.get("x-signature");
+    if (webhookSecret && hasSignature && !verifyMpSignature(req, rawBody, webhookSecret)) {
       return json({ error: "Invalid signature" }, 401);
     }
 
@@ -46,12 +47,15 @@ Deno.serve(async (req: Request) => {
       throw dupErr;
     }
 
-    const topic = payload.type;
-    const dataId = payload.data?.id;
+    const url = new URL(req.url);
+    const topic = String(
+      payload.type || payload.topic || url.searchParams.get("topic") || url.searchParams.get("type") || "",
+    );
+    const dataId = payload.data?.id || payload.id || url.searchParams.get("id") || url.searchParams.get("data.id");
 
-    if (topic === "subscription_preapproval" && dataId) {
+    if ((topic === "subscription_preapproval" || topic === "subscription_authorized_payment") && dataId) {
       await syncPreapproval(admin, String(dataId));
-    } else if (topic === "payment" && dataId) {
+    } else if ((topic === "payment" || topic === "topic_payment") && dataId) {
       await syncPayment(admin, String(dataId));
     }
 
@@ -134,19 +138,59 @@ async function syncPayment(
   const payment = await resp.json();
   if (payment.status !== "approved") return;
 
-  const preId = payment.metadata?.preapproval_id || payment.preapproval_id;
-  if (!preId) return;
-
+  const checkoutToken = String(
+    payment.external_reference || payment.metadata?.checkout_token || "",
+  ).trim();
+  const preferenceId = String(payment.preference_id || payment.order?.id || "").trim();
+  const now = new Date().toISOString();
   const end = new Date();
   end.setMonth(end.getMonth() + 1);
-  await admin
-    .from("subscriptions")
-    .update({
-      status: "active",
-      current_period_end: end.toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("mp_preapproval_id", String(preId));
+
+  let checkout: { id: string; token: string; plan_id: string | null; user_id: string | null; subscription_id: string | null } | null = null;
+  if (checkoutToken) {
+    const { data } = await admin
+      .from("checkout_sessions")
+      .select("id, token, plan_id, user_id, subscription_id")
+      .eq("token", checkoutToken)
+      .maybeSingle();
+    checkout = data;
+  }
+  if (!checkout && preferenceId) {
+    const { data } = await admin
+      .from("checkout_sessions")
+      .select("id, token, plan_id, user_id, subscription_id")
+      .eq("mp_preapproval_id", preferenceId)
+      .maybeSingle();
+    checkout = data;
+  }
+
+  if (checkout) {
+    await admin.from("checkout_sessions").update({
+      status: "paid",
+      payer_email: payment.payer?.email || undefined,
+      updated_at: now,
+    }).eq("id", checkout.id);
+  }
+
+  const subUpdate = {
+    status: "active",
+    current_period_end: end.toISOString(),
+    updated_at: now,
+  };
+
+  if (checkout?.subscription_id) {
+    await admin.from("subscriptions").update(subUpdate).eq("id", checkout.subscription_id);
+    return;
+  }
+  if (checkout?.user_id) {
+    await admin.from("subscriptions").update(subUpdate)
+      .eq("user_id", checkout.user_id)
+      .in("status", ["pending", "active", "past_due"]);
+    return;
+  }
+  if (preferenceId) {
+    await admin.from("subscriptions").update(subUpdate).eq("mp_preapproval_id", preferenceId);
+  }
 }
 
 function verifyMpSignature(req: Request, body: string, secret: string): boolean {

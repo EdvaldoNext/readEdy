@@ -113,6 +113,7 @@ window.ReadEdyBilling = (function() {
                 return loadUsage(client, ReadEdyAuth.getUserId());
             })
             .then(function() {
+                if (status && status.status === 'active') clearCheckoutToken();
                 notify();
                 return status;
             });
@@ -187,7 +188,8 @@ window.ReadEdyBilling = (function() {
     function needsGoogleLink() {
         var token = getCheckoutToken();
         if (!token) return false;
-        if (window.ReadEdyAuth && ReadEdyAuth.isLoggedIn() && isActive()) return false;
+        if (window.ReadEdyAuth && ReadEdyAuth.isLoggedIn()) return false;
+        if (isActive()) return false;
         return true;
     }
 

@@ -4001,6 +4001,7 @@ var safeStorage = (function() {
             if (window.ReadEdyAuth) ReadEdyAuth.logSessionStart();
             updateAccountUi();
             trackSiteVisit();
+            pollPaidCheckout();
         }).catch(function(err) {
             console.warn('Auth init', err);
         });
@@ -5296,6 +5297,22 @@ var safeStorage = (function() {
         }).catch(function() {});
     }
 
+    function pollPaidCheckout() {
+        if (!window.ReadEdyBilling || !ReadEdyBilling.getCheckoutToken()) return;
+        if (!window.ReadEdyAuth || !ReadEdyAuth.isLoggedIn()) return;
+        var tries = 0;
+        var timer = setInterval(function() {
+            tries += 1;
+            ReadEdyBilling.linkAfterAuth().then(function() {
+                return ReadEdyBilling.refresh(readeraSb);
+            }).then(function() {
+                updateAccountUi();
+                if (ReadEdyBilling.isActive()) clearInterval(timer);
+            }).catch(function() {});
+            if (tries >= 8) clearInterval(timer);
+        }, 4000);
+    }
+
     function startPlanCheckout(planSlug) {
         if (!window.ReadEdyBilling) return;
         var loggedIn = window.ReadEdyAuth && ReadEdyAuth.isLoggedIn();
@@ -5333,6 +5350,9 @@ var safeStorage = (function() {
             else if (!loggedIn) subEl.textContent = 'Assine um plano para usar a nuvem';
             else if (active) subEl.textContent = 'Nuvem ligada · sessão ativa';
             else if (needsLink) subEl.textContent = 'Pagamento recebido — vincule com Google';
+            else if (loggedIn && window.ReadEdyBilling && ReadEdyBilling.getCheckoutToken()) {
+                subEl.textContent = 'Pagamento em confirmação. Se já pagou no PIX, aguarde e recarregue.';
+            }
             else subEl.textContent = 'Conta sem assinatura ativa';
         }
         if (planEl && window.ReadEdyBilling) {
