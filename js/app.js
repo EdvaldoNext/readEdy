@@ -836,8 +836,26 @@ var safeStorage = (function() {
     }
 
     function canUsePremiumFeatures() {
-        return window.ReadEdyAuth && ReadEdyAuth.isLoggedIn()
-            && window.ReadEdyBilling && ReadEdyBilling.isActive();
+        return !!(window.ReadEdyBilling && ReadEdyBilling.isActive());
+    }
+
+    function requirePaidAccess() {
+        if (canUsePremiumFeatures()) return true;
+        showNotification('Crie a conta e pague para usar o ReadEdy.', true);
+        openHomeView('conta');
+        return false;
+    }
+
+    function applyAccessLock() {
+        var locked = !canUsePremiumFeatures();
+        if (locked) document.body.classList.add('access-locked');
+        else document.body.classList.remove('access-locked');
+        if (locked) {
+            if (typeof isReading !== 'undefined' && isReading && typeof stopTTS === 'function') {
+                try { stopTTS(); } catch (e) {}
+            }
+            if (!homeView || homeActiveTab !== 'conta') openHomeView('conta');
+        }
     }
 
     function runOcrOnPage(page, num) {
@@ -3363,15 +3381,21 @@ var safeStorage = (function() {
     }
 
     function openHomeView(tab) {
+        tab = tab || homeActiveTab;
+        if (tab !== 'conta' && !canUsePremiumFeatures()) {
+            tab = 'conta';
+            showNotification('Crie a conta e pague para usar o ReadEdy.', true);
+        }
         closeMobileNav();
         homeView = true;
         applyShellState();
-        setHomeTab(tab || homeActiveTab);
+        setHomeTab(tab);
         var viewer = document.getElementById('viewer-container');
         if (viewer) viewer.scrollTop = 0;
     }
 
     function openReaderView() {
+        if (!requirePaidAccess()) return;
         if (!pdfDoc) return;
         closeMobileNav();
         homeView = false;
@@ -3683,6 +3707,7 @@ var safeStorage = (function() {
        Se o livro em destaque ainda não está carregado, carrega-o em segundo
        plano (a Home continua à vista) e começa a ler quando estiver pronto. */
     function playFeaturedAudio() {
+        if (!requirePaidAccess()) return;
         _unlockAudio();
         if (pdfDoc && homeFeaturedIsOpen) {
             toggleTTS();
@@ -3698,6 +3723,7 @@ var safeStorage = (function() {
 
     /* "Visualizar livro": única forma de abrir a página do PDF a partir da Home */
     function viewFeaturedDocument() {
+        if (!requirePaidAccess()) return;
         if (pdfDoc && homeFeaturedIsOpen) {
             openReaderView();
             return;
@@ -3713,6 +3739,7 @@ var safeStorage = (function() {
         window.addEventListener('resize', syncSearchPlaceholder);
         var fileInput = document.getElementById('file-input');
         function openLocalPdf() {
+            if (!requirePaidAccess()) return;
             if (fileInput) fileInput.click();
         }
         var openBtns = ['home-btn-open-pdf', 'home-btn-open-pdf-account'];
@@ -3744,7 +3771,9 @@ var safeStorage = (function() {
         for (var i = 0; i < navItems.length; i++) {
             (function(btn) {
                 btn.addEventListener('click', function() {
-                    openHomeView(btn.getAttribute('data-home-nav'));
+                    var tab = btn.getAttribute('data-home-nav');
+                    if (tab !== 'conta' && !requirePaidAccess()) return;
+                    openHomeView(tab);
                 });
             })(navItems[i]);
         }
@@ -3752,6 +3781,7 @@ var safeStorage = (function() {
         for (var s = 0; s < sidebarSubs.length; s++) {
             (function(btn) {
                 btn.addEventListener('click', function() {
+                    if (!requirePaidAccess()) return;
                     setLibraryView(btn.getAttribute('data-library-view'));
                 });
             })(sidebarSubs[s]);
@@ -3760,6 +3790,7 @@ var safeStorage = (function() {
         for (var t = 0; t < sidebarTrash.length; t++) {
             (function(btn) {
                 btn.addEventListener('click', function() {
+                    if (!requirePaidAccess()) return;
                     openHomeView('lixeira');
                 });
             })(sidebarTrash[t]);
@@ -4000,6 +4031,7 @@ var safeStorage = (function() {
         }).then(function() {
             if (window.ReadEdyAuth) ReadEdyAuth.logSessionStart();
             updateAccountUi();
+            applyAccessLock();
             trackSiteVisit();
             pollPaidCheckout();
         }).catch(function(err) {
@@ -4017,6 +4049,7 @@ var safeStorage = (function() {
             ReadEdyAuth.onAuthStateChange(function() {
                 if (window.ReadEdyBilling) ReadEdyBilling.refresh(readeraSb);
                 updateAccountUi();
+                applyAccessLock();
                 updateCloudPrefsVisibility();
                 updateCloudChrome();
                 applyTtsEngineFromPreference({ invalidateCache: false });
@@ -4153,6 +4186,7 @@ var safeStorage = (function() {
     }
 
     function openCloudDocumentById(id, opts) {
+        if (!requirePaidAccess()) return;
         if (!id || !readeraSb) return;
         opts = opts || {};
         var keepHome = !!opts.keepHome;
@@ -4489,6 +4523,10 @@ var safeStorage = (function() {
     }
 
     fileInput.onchange = function(e) {
+        if (!requirePaidAccess()) {
+            e.target.value = '';
+            return;
+        }
         var file = e.target.files[0];
         if (!file) return;
         var gen = ++cloudLoadGen;
@@ -4927,6 +4965,7 @@ var safeStorage = (function() {
 
     /* toggleTTS — SÍNCRONA para Chrome HTTPS respeitar gesto do utilizador */
     function toggleTTS() {
+        if (!requirePaidAccess()) return;
         /* Desbloquear áudio a cada clique (garante unlock mesmo se primeiro clique foi noutro elemento) */
         _unlockAudio();
         applyTtsEngineFromPreference({ invalidateCache: false });
@@ -5390,8 +5429,8 @@ var safeStorage = (function() {
         var leadText = document.getElementById('home-auth-lead-text');
         if (leadText) {
             leadText.textContent = loggedIn
-                ? 'Conta criada. Escolha o plano para ir ao pagamento.'
-                : 'Crie sua conta para assinar e sincronizar PDFs, TTS na nuvem e OCR. Leitura local continua gratuita.';
+                ? 'Conta criada. Pague um plano para liberar o uso do ReadEdy.'
+                : 'Crie sua conta e pague para usar o ReadEdy. Sem pagamento o app fica bloqueado.';
         }
         var signoutLogged = document.getElementById('home-btn-signout-logged');
         if (signoutLogged) {
@@ -5535,6 +5574,7 @@ var safeStorage = (function() {
         if (window.ReadEdyBilling) {
             ReadEdyBilling.onChange(function() {
                 updateAccountUi();
+                applyAccessLock();
                 applyTtsEngineFromPreference({ invalidateCache: false });
             });
         }
@@ -5572,3 +5612,4 @@ var safeStorage = (function() {
     } catch (e) {}
     initSupabaseClient();
     wireHomeUi();
+    applyAccessLock();

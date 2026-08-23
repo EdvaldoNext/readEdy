@@ -3687,3 +3687,13 @@
         .home-plan-price span { font-size: 0.75rem; font-weight: 500; color: var(--home-muted); }
         .home-plan-features { margin: 0; padding-left: 18px; font-size: 0.82rem; color: var(--home-muted); line-height: 1.5; }
         .home-plan-card .home-account-btn { margin-top: auto; }
+
+        body.access-locked .sidebar-nav-item:not([data-home-nav="conta"]),
+        body.access-locked .sidebar-sub-item,
+        body.access-locked .home-nav-item:not([data-home-nav="conta"]) {
+            opacity: 0.42;
+        }
+        body.access-locked #nav-controls,
+        body.access-locked #pdf-render-area {
+            display: none !important;
+        }
