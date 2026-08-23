@@ -1,0 +1,31 @@
+{
+  "name": "ReadEdy",
+  "short_name": "ReadEdy",
+  "description": "Leitor PDF com leitura em voz alta",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#12141c",
+  "theme_color": "#F8991D",
+  "icons": [
+    {
+      "src": "./docs/mockups/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./docs/mockups/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./docs/mockups/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
