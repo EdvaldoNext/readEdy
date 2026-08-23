@@ -23,7 +23,7 @@
     <script src="config.js"></script>
     <!-- ?v= força o navegador/CDN a buscar a versão nova a cada deploy.
          Ao alterar css/app.css ou js/app.js, incremente este valor. -->
-    <link rel="stylesheet" href="./css/app.css?v=20260824b">
+    <link rel="stylesheet" href="./css/app.css?v=20260824c">
 </head>
 <body>
 
@@ -421,6 +421,16 @@
             </section>
         </div>
         <div class="home-tab-panel hidden" id="home-tab-conta" data-home-tab="conta">
+            <div class="auth-stage">
+                <div class="auth-stage-brand" aria-hidden="true">
+                    <div class="auth-logo-wrap">
+                        <span class="auth-logo-glow"></span>
+                        <img class="auth-logo" src="./docs/mockups/favicon-logo.png" alt="" width="280" height="280" decoding="async">
+                    </div>
+                    <p class="auth-wordmark">ReadEdy</p>
+                    <p class="auth-tagline">Leia e ouça seus PDFs com voz natural</p>
+                </div>
+                <div class="auth-glass">
             <div class="home-account-card">
                 <div class="home-account-avatar" aria-hidden="true">
                     <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.5 3.1-5.6 7-5.6s7 2.1 7 5.6"/></svg>
@@ -432,15 +442,22 @@
             </div>
 
             <div id="home-auth-guest" class="home-auth-panel">
-                <p class="home-auth-lead" id="home-auth-lead-text">Crie sua conta e pague para usar o ReadEdy. Sem pagamento o app fica bloqueado.</p>
+                <h2 class="auth-glass-title">Bem-vindo</h2>
+                <p class="home-auth-lead" id="home-auth-lead-text">Entre com suas credenciais para acessar</p>
                 <div class="home-signup-block" id="home-signup-block">
                     <div class="home-auth-tabs">
                         <button type="button" class="home-auth-tab is-active" id="home-tab-signup">Criar conta</button>
                         <button type="button" class="home-auth-tab" id="home-tab-signin">Já tenho conta</button>
                     </div>
                     <form class="home-signup-form" id="home-signup-form">
-                        <input type="email" id="home-signup-email" class="home-auth-email-input" placeholder="Seu e-mail" autocomplete="email" required>
-                        <input type="password" id="home-signup-password" class="home-auth-email-input" placeholder="Senha (mínimo 6 caracteres)" autocomplete="new-password" minlength="6" required>
+                        <label class="auth-field-label" for="home-signup-email">E-mail</label>
+                        <input type="email" id="home-signup-email" class="home-auth-email-input" placeholder="seu@email.com" autocomplete="email" required>
+                        <label class="auth-field-label" for="home-signup-password">Senha</label>
+                        <input type="password" id="home-signup-password" class="home-auth-email-input" placeholder="Mínimo 6 caracteres" autocomplete="new-password" minlength="6" required>
+                        <div class="auth-form-row">
+                            <label class="auth-remember"><input type="checkbox" id="home-signup-remember" checked> Lembrar de mim</label>
+                            <button type="button" class="home-auth-recover-toggle" id="home-btn-recover-toggle">Esqueceu a senha?</button>
+                        </div>
                         <button type="submit" class="home-account-btn home-auth-btn-primary" id="home-signup-submit">Criar conta</button>
                     </form>
                     <p class="home-auth-divider">ou</p>
@@ -470,7 +487,6 @@
                         <button type="button" class="home-account-btn" id="home-btn-plan-premium" data-plan="premium_monthly">Pagar Premium</button>
                     </article>
                 </div>
-                <button type="button" class="home-auth-recover-toggle" id="home-btn-recover-toggle">Recuperar acesso por e-mail</button>
                 <button type="button" class="home-account-btn hidden" id="home-btn-signout-logged">Sair da conta</button>
                 <form id="home-auth-email-form" class="home-auth-email-form hidden">
                     <input type="email" id="home-auth-email-input" class="home-auth-email-input" placeholder="Seu e-mail" required>
@@ -486,6 +502,8 @@
             <div id="home-auth-user" class="home-auth-panel hidden">
                 <button type="button" class="home-account-btn" id="home-btn-manage-subscription">Gerenciar assinatura</button>
                 <button type="button" class="home-account-btn" id="home-btn-signout">Sair da conta</button>
+            </div>
+                </div>
             </div>
             <div class="home-account-mobile-nav" aria-label="Mais opções">
                 <button type="button" class="home-account-btn home-nav-item" data-home-nav="favoritos">
@@ -659,6 +677,6 @@
 
 <script src="./js/auth.js?v=20260823a"></script>
 <script src="./js/billing.js?v=20260824a"></script>
-<script src="./js/app.js?v=20260824b"></script>
+<script src="./js/app.js?v=20260824c"></script>
 </body>
 </html>

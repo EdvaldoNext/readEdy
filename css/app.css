@@ -3697,3 +3697,195 @@
         body.access-locked #pdf-render-area {
             display: none !important;
         }
+
+        .auth-stage { display: flex; flex-direction: column; gap: 16px; }
+        .auth-stage-brand { display: none; }
+        .auth-glass { display: contents; }
+        .auth-glass-title { display: none; }
+        .auth-field-label { font-size: 0.8rem; font-weight: 600; color: var(--home-text); }
+        .auth-form-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 2px 0 6px;
+        }
+        .auth-remember { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--home-muted); cursor: pointer; }
+        .auth-remember input { accent-color: var(--home-accent); }
+
+        body.access-locked .app-sidebar,
+        body.access-locked .app-topbar,
+        body.access-locked .home-account-mobile-nav,
+        body.access-locked .home-account-actions,
+        body.access-locked .home-pro-banner,
+        body.access-locked .sidebar-premium,
+        body.access-locked .home-mini-player {
+            display: none !important;
+        }
+        body.access-locked .app-shell,
+        body.access-locked #welcome,
+        body.access-locked #viewer-container,
+        body.access-locked #home-tab-conta {
+            display: block !important;
+            height: 100%;
+            min-height: 100%;
+        }
+        body.access-locked .home-tab-panel:not(#home-tab-conta) { display: none !important; }
+        body.access-locked:not(.auth-session) .home-plan-cards,
+        body.access-locked:not(.auth-session) .home-account-card { display: none; }
+        body.access-locked .auth-stage {
+            position: fixed;
+            inset: 0;
+            z-index: 70;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 56px;
+            padding: 32px 40px;
+            box-sizing: border-box;
+            background:
+                radial-gradient(ellipse 50% 60% at 18% 50%, rgba(248,153,29,0.22), transparent 58%),
+                radial-gradient(ellipse 40% 50% at 85% 20%, rgba(248,153,29,0.08), transparent 50%),
+                #0a0b10;
+        }
+        body.access-locked .auth-stage-brand {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 360px;
+            text-align: center;
+        }
+        .auth-logo-wrap {
+            position: relative;
+            width: 280px;
+            height: 280px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .auth-logo-glow {
+            position: absolute;
+            inset: 8%;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(248,153,29,0.55) 0%, rgba(248,153,29,0.12) 42%, transparent 70%);
+            filter: blur(18px);
+            animation: auth-pulse 3.2s ease-in-out infinite;
+        }
+        .auth-logo {
+            position: relative;
+            width: 240px;
+            height: 240px;
+            object-fit: contain;
+            filter: drop-shadow(0 0 22px rgba(248,153,29,0.55)) drop-shadow(0 12px 28px rgba(0,0,0,0.55));
+        }
+        .auth-wordmark {
+            margin: 8px 0 0;
+            font-size: 2.4rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            color: #fff;
+            text-shadow: 0 0 24px rgba(248,153,29,0.45);
+        }
+        .auth-tagline {
+            margin: 6px 0 0;
+            font-size: 1rem;
+            color: rgba(255,255,255,0.72);
+            line-height: 1.45;
+        }
+        body.access-locked .auth-glass {
+            position: relative;
+            display: block;
+            width: min(440px, 100%);
+            padding: 28px 26px 24px;
+            border-radius: 22px;
+            background: rgba(18, 20, 28, 0.58);
+            border: 1px solid rgba(255,255,255,0.18);
+            box-shadow: 0 24px 60px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.12);
+            -webkit-backdrop-filter: blur(22px);
+            backdrop-filter: blur(22px);
+            max-height: calc(100vh - 48px);
+            overflow: auto;
+        }
+        body.access-locked .auth-glass::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            border-radius: inherit;
+            background: linear-gradient(135deg, rgba(255,255,255,0.16) 0%, transparent 38%);
+        }
+        body.access-locked .home-auth-email-input {
+            width: 100%;
+            box-sizing: border-box;
+            border-radius: 12px;
+            background: rgba(8, 9, 14, 0.55);
+            border: 1px solid rgba(255,255,255,0.14);
+        }
+        body.access-locked .home-auth-recover-toggle {
+            margin-top: 0;
+            color: rgba(255,255,255,0.78);
+        }
+        body.access-locked .home-auth-lead {
+            color: rgba(255,255,255,0.68);
+        }
+        body.access-locked .auth-glass-title {
+            display: block;
+            margin: 0 0 6px;
+            font-size: 1.7rem;
+            font-weight: 800;
+            color: #fff;
+        }
+        body.access-locked.auth-session .auth-glass-title { display: none; }
+        body.access-locked .home-account-card {
+            background: transparent;
+            padding: 0 0 8px;
+            margin: 0;
+            text-align: left;
+        }
+        body.access-locked .home-account-avatar { display: none; }
+        body.access-locked .home-signup-block {
+            padding: 0;
+            margin: 0;
+            border: none;
+            background: transparent;
+        }
+        body.access-locked .home-auth-btn-primary {
+            justify-content: center;
+            text-align: center;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #F8991D, #ffb347);
+            color: #111;
+            min-height: 46px;
+            font-weight: 800;
+        }
+        body.access-locked #home-btn-google-signup {
+            justify-content: center;
+            text-align: center;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.16);
+            background: rgba(255,255,255,0.06);
+        }
+        body.access-locked .home-auth-tab.is-active {
+            background: rgba(248,153,29,0.18);
+            color: #fff;
+            border-color: rgba(248,153,29,0.45);
+        }
+        @keyframes auth-pulse {
+            0%, 100% { opacity: 0.7; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.06); }
+        }
+        @media (max-width: 860px) {
+            body.access-locked .auth-stage {
+                flex-direction: column;
+                gap: 16px;
+                padding: 20px 16px;
+                justify-content: flex-start;
+                overflow: auto;
+            }
+            .auth-logo-wrap { width: 148px; height: 148px; }
+            .auth-logo { width: 128px; height: 128px; }
+            .auth-wordmark { font-size: 1.7rem; }
+            .auth-tagline { font-size: 0.88rem; }
+            body.access-locked .auth-glass { width: 100%; max-height: none; }
+        }

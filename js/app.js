@@ -5374,6 +5374,8 @@ var safeStorage = (function() {
     function updateAccountUi() {
         var loggedIn = window.ReadEdyAuth && ReadEdyAuth.isLoggedIn();
         var user = loggedIn ? ReadEdyAuth.getUser() : null;
+        if (loggedIn) document.body.classList.add('auth-session');
+        else document.body.classList.remove('auth-session');
         var active = window.ReadEdyBilling && ReadEdyBilling.isActive();
         var needsLink = window.ReadEdyBilling && ReadEdyBilling.needsGoogleLink();
         var nameEl = document.getElementById('home-account-name');
@@ -5386,7 +5388,7 @@ var safeStorage = (function() {
         if (nameEl) nameEl.textContent = loggedIn ? (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name) || user.email || 'Conta ReadEdy') : 'ReadEdy';
         if (subEl) {
             if (!readeraSb) subEl.textContent = 'Nuvem desligada (sem config.js)';
-            else if (!loggedIn) subEl.textContent = 'Assine um plano para usar a nuvem';
+            else if (!loggedIn) subEl.textContent = 'Entre com e-mail ou Google para continuar';
             else if (active) subEl.textContent = 'Nuvem ligada · sessão ativa';
             else if (needsLink) subEl.textContent = 'Pagamento recebido — vincule com Google';
             else if (loggedIn && window.ReadEdyBilling && ReadEdyBilling.getCheckoutToken()) {
@@ -5430,7 +5432,7 @@ var safeStorage = (function() {
         if (leadText) {
             leadText.textContent = loggedIn
                 ? 'Conta criada. Pague um plano para liberar o uso do ReadEdy.'
-                : 'Crie sua conta e pague para usar o ReadEdy. Sem pagamento o app fica bloqueado.';
+                : 'Entre com suas credenciais para acessar';
         }
         var signoutLogged = document.getElementById('home-btn-signout-logged');
         if (signoutLogged) {
@@ -5449,7 +5451,15 @@ var safeStorage = (function() {
         var passInput = document.getElementById('home-signup-password');
         var submitBtn = document.getElementById('home-signup-submit');
         var googleBtn = document.getElementById('home-btn-google-signup');
+        var rememberEl = document.getElementById('home-signup-remember');
+        var recoverToggle = document.getElementById('home-btn-recover-toggle');
+        var recoverForm = document.getElementById('home-auth-email-form');
         if (!form || !emailInput || !passInput || !submitBtn) return;
+
+        try {
+            var savedEmail = localStorage.getItem('readedy_remember_email');
+            if (savedEmail) emailInput.value = savedEmail;
+        } catch (e) {}
 
         function setMode(mode) {
             signupMode = mode;
@@ -5458,6 +5468,8 @@ var safeStorage = (function() {
             passInput.setAttribute('autocomplete', creating ? 'new-password' : 'current-password');
             if (tabSignup) tabSignup.classList.toggle('is-active', creating);
             if (tabSignin) tabSignin.classList.toggle('is-active', !creating);
+            if (recoverToggle) recoverToggle.style.visibility = creating ? 'hidden' : 'visible';
+            if (creating && recoverForm) recoverForm.classList.add('hidden');
         }
 
         if (tabSignup) tabSignup.addEventListener('click', function() { setMode('signup'); });
@@ -5468,6 +5480,10 @@ var safeStorage = (function() {
             if (!window.ReadEdyAuth) return;
             var email = String(emailInput.value || '').trim();
             var password = String(passInput.value || '');
+            try {
+                if (rememberEl && rememberEl.checked) localStorage.setItem('readedy_remember_email', email);
+                else localStorage.removeItem('readedy_remember_email');
+            } catch (err) {}
             submitBtn.disabled = true;
             var action = signupMode === 'signup'
                 ? ReadEdyAuth.signUpWithPassword(email, password)
