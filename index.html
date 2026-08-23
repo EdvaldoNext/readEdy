@@ -23,7 +23,7 @@
     <script src="config.js" onerror="void 0"></script>
     <!-- ?v= força o navegador/CDN a buscar a versão nova a cada deploy.
          Ao alterar css/app.css ou js/app.js, incremente este valor. -->
-    <link rel="stylesheet" href="./css/app.css?v=20260822d">
+    <link rel="stylesheet" href="./css/app.css?v=20260822e">
 </head>
 <body>
 
@@ -49,19 +49,25 @@
             <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.5 3.1-5.6 7-5.6s7 2.1 7 5.6"/></svg>
         </button>
     </div>
-    <div class="header-reader-bar">
-        <button type="button" class="reader-back-btn" id="btn-reader-back" title="Voltar ao início" aria-label="Voltar ao início">←</button>
-        <span class="reader-book-title" id="reader-book-title">Leitura</span>
+    <div class="home-toolbar" aria-label="Ações da biblioteca">
         <div class="header-actions">
-            <button type="button" id="cloud-badge" class="hdr-icon-btn cloud-status-wait" title="Estado da nuvem" aria-label="Estado da nuvem" disabled>☁️</button>
+            <button type="button" id="cloud-badge" class="hdr-icon-btn cloud-status-wait" title="Estado da nuvem" aria-label="Estado da nuvem" disabled>
+                <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H7a4 4 0 0 1-.5-7.97A5.5 5.5 0 0 1 17.4 10a4.5 4.5 0 0 1 .1 9z"/></svg>
+            </button>
             <div class="cloud-library-wrap hdr-library-select hidden" id="cloud-library-wrap" title="Abrir PDF salvo na nuvem">
                 <button type="button" id="cloud-library-trigger" class="cloud-library-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="cloud-library-panel">PDFs</button>
                 <div id="cloud-library-panel" class="cloud-library-panel hidden" role="listbox" aria-label="Meus PDFs na nuvem"></div>
             </div>
-            <button type="button" class="hdr-icon-btn hidden" id="btn-cloud-save" title="Guardar PDF na nuvem" aria-label="Guardar na nuvem">☁️⬆</button>
-            <button type="button" class="hdr-icon-btn hdr-icon-danger hidden" id="btn-cloud-delete" title="Apagar todos os PDFs da nuvem" aria-label="Apagar todos os PDFs da nuvem">🗑</button>
-            <button type="button" class="hdr-icon-btn" id="btn-theme" title="Inverter cores da página do PDF" aria-label="Inverter cores da página do PDF">🌙</button>
-            <button type="button" class="hdr-icon-btn hdr-icon-primary" id="btn-open-pdf" title="Abrir PDF" aria-label="Abrir PDF" onclick="document.getElementById('file-input').click()">📂</button>
+            <button type="button" class="hdr-icon-btn hidden" id="btn-cloud-save" title="Guardar PDF na nuvem" aria-label="Guardar na nuvem">
+                <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 18H7a4 4 0 0 1-.5-7.97A5.5 5.5 0 0 1 17.4 9a4.5 4.5 0 0 1 .1 9z"/><path d="M12 21v-7M9.5 16.5L12 14l2.5 2.5"/></svg>
+            </button>
+            <button type="button" class="hdr-icon-btn hdr-icon-danger hidden" id="btn-cloud-delete" title="Apagar todos os PDFs da nuvem" aria-label="Apagar todos os PDFs da nuvem">
+                <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>
+            </button>
+            <button type="button" class="hdr-icon-btn" id="btn-theme" title="Inverter cores da página do PDF" aria-label="Inverter cores da página do PDF"></button>
+            <button type="button" class="hdr-icon-btn hdr-icon-primary" id="btn-open-pdf" title="Abrir PDF" aria-label="Abrir PDF" onclick="document.getElementById('file-input').click()">
+                <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
         </div>
     </div>
     <input type="file" id="file-input" accept="application/pdf" class="hidden">
@@ -70,7 +76,9 @@
 <div id="settings-screen" class="settings-screen" role="dialog" aria-modal="true" aria-labelledby="settings-screen-title" aria-hidden="true">
     <div class="settings-screen-card">
         <div class="settings-screen-header">
-            <button type="button" class="settings-back-btn" id="btn-settings-back" title="Voltar" aria-label="Voltar">←</button>
+            <button type="button" class="settings-back-btn" id="btn-settings-back" title="Voltar" aria-label="Voltar">
+                <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+            </button>
             <h1 id="settings-screen-title">Configurações</h1>
         </div>
         <div class="settings-scroll-wrap">
@@ -139,8 +147,12 @@
             </div>
         </div>
         <div class="scroll-nav-stack scroll-nav-stack--settings" id="settings-scroll-nav" aria-label="Rolar configurações">
-            <button type="button" class="scroll-nav-btn" id="btn-settings-scroll-up" title="Rolar para cima" aria-label="Rolar configurações para cima">▲</button>
-            <button type="button" class="scroll-nav-btn" id="btn-settings-scroll-down" title="Rolar para baixo" aria-label="Rolar configurações para baixo">▼</button>
+            <button type="button" class="scroll-nav-btn" id="btn-settings-scroll-up" title="Rolar para cima" aria-label="Rolar configurações para cima">
+                <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+            </button>
+            <button type="button" class="scroll-nav-btn" id="btn-settings-scroll-down" title="Rolar para baixo" aria-label="Rolar configurações para baixo">
+                <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
         </div>
         </div>
     </div>
@@ -158,9 +170,15 @@
                         <h3 class="home-continue-title" id="home-continue-title"></h3>
                         <p class="home-continue-meta" id="home-continue-meta"></p>
                         <div class="home-continue-progress-track"><div class="home-continue-progress-fill" id="home-continue-progress-fill"></div></div>
-                        <span class="home-continue-pct" id="home-continue-pct"></span>
+                        <div class="home-continue-footer">
+                            <span class="home-continue-pct" id="home-continue-pct"></span>
+                            <button type="button" class="home-view-btn" id="home-btn-view-book" title="Ver as páginas do PDF" aria-label="Visualizar livro">
+                                <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.6"/></svg>
+                                Visualizar livro
+                            </button>
+                        </div>
                     </div>
-                    <button type="button" class="home-continue-play" id="home-continue-play" title="Continuar leitura" aria-label="Continuar leitura">
+                    <button type="button" class="home-continue-play" id="home-continue-play" title="Ouvir" aria-label="Ouvir">
                         <svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
                     </button>
                 </div>
@@ -239,18 +257,34 @@
 </div>
 
 <div id="tts-toast" role="status" aria-live="polite"></div>
+<div id="reader-topbar" class="reader-topbar" aria-label="Barra do leitor">
+    <button type="button" class="reader-icon-btn" id="btn-reader-back" title="Voltar ao início" aria-label="Voltar ao início">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <span class="reader-book-title" id="reader-book-title">Leitura</span>
+</div>
 <div class="reader-float-left" aria-label="Controles rápidos de leitura">
-    <button type="button" id="btn-show-chrome" class="reader-chrome-fab" title="Mostrar/ocultar barras" aria-label="Alternar barras">☰</button>
+    <button type="button" id="btn-show-chrome" class="reader-chrome-fab" title="Mostrar/ocultar barras" aria-label="Alternar barras">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
     <div class="reader-float-actions">
-        <button type="button" id="btn-tts-float" class="btn-tts-ui tts-state-idle" onclick="toggleTTS()" title="Ouvir em voz alta" aria-label="Ouvir em voz alta"><span class="tts-speaker" aria-hidden="true">🔊</span><span class="tts-badge-x" aria-hidden="true">✕</span></button>
-        <button type="button" id="btn-toggle-layout" class="reader-chrome-fab" title="Modo leitura larga" aria-label="Modo leitura larga">↔</button>
+        <button type="button" id="btn-tts-float" class="btn-tts-ui tts-state-idle" onclick="toggleTTS()" title="Ouvir em voz alta" aria-label="Ouvir em voz alta">
+            <svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button type="button" id="btn-toggle-layout" class="reader-chrome-fab" title="Modo leitura larga" aria-label="Modo leitura larga">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8L4 12l4 4M16 8l4 4-4 4M4 12h16"/></svg>
+        </button>
         <button type="button" id="btn-zoom-out" class="reader-chrome-fab reader-zoom-btn" title="Diminuir texto" aria-label="Diminuir texto">A−</button>
         <button type="button" id="btn-zoom-in"  class="reader-chrome-fab reader-zoom-btn" title="Aumentar texto" aria-label="Aumentar texto">A+</button>
     </div>
 </div>
 <div id="reader-scroll-nav" class="scroll-nav-stack scroll-nav-stack--reader" aria-label="Rolar página do PDF">
-    <button type="button" class="scroll-nav-btn" id="btn-reader-scroll-up" title="Rolar página para cima" aria-label="Rolar página para cima">▲</button>
-    <button type="button" class="scroll-nav-btn" id="btn-reader-scroll-down" title="Rolar página para baixo" aria-label="Rolar página para baixo">▼</button>
+    <button type="button" class="scroll-nav-btn" id="btn-reader-scroll-up" title="Rolar página para cima" aria-label="Rolar página para cima">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+    </button>
+    <button type="button" class="scroll-nav-btn" id="btn-reader-scroll-down" title="Rolar página para baixo" aria-label="Rolar página para baixo">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
 </div>
 <div id="reader-float-bar" aria-label="Controles de leitura sobre o PDF"></div>
 
@@ -283,19 +317,31 @@
 <div id="nav-controls" class="controls-bottom hidden">
     <div class="controls-inner controls-inner-compact">
         <div class="controls-row controls-row-main">
-            <button type="button" id="btn-tts" class="btn-tts-ui tts-state-idle" onclick="toggleTTS()" title="Ouvir em voz alta" aria-label="Ouvir em voz alta"><span class="tts-speaker" aria-hidden="true">🔊</span><span class="tts-badge-x" aria-hidden="true">✕</span></button>
-            <button type="button" id="btn-tts-skip-back" class="btn btn-nav-arrow" title="Retroceder 15 segundos" aria-label="Retroceder 15 segundos">⏪</button>
-            <button type="button" class="btn btn-nav-arrow" onclick="changePage(-1)" title="Página anterior" aria-label="Página anterior">◀</button>
+            <button type="button" id="btn-tts" class="btn-tts-ui tts-state-idle" onclick="toggleTTS()" title="Ouvir em voz alta" aria-label="Ouvir em voz alta">
+                <svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button type="button" id="btn-tts-skip-back" class="btn btn-nav-arrow" title="Retroceder 15 segundos" aria-label="Retroceder 15 segundos">
+                <svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 12l7-5v10zM4 12l7-5v10z"/></svg>
+            </button>
+            <button type="button" class="btn btn-nav-arrow" onclick="changePage(-1)" title="Página anterior" aria-label="Página anterior">
+                <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+            </button>
             <span id="page-info">0 / 0</span>
-            <button type="button" class="btn btn-nav-arrow" onclick="changePage(1)" title="Próxima página" aria-label="Próxima página">▶</button>
-            <button type="button" id="btn-tts-skip-fwd" class="btn btn-nav-arrow" title="Avançar 15 segundos" aria-label="Avançar 15 segundos">⏩</button>
-            <button type="button" class="btn btn-nav-arrow" id="btn-settings" title="Configurações" aria-expanded="false" aria-controls="settings-screen" aria-label="Configurações">⚙️</button>
+            <button type="button" class="btn btn-nav-arrow" onclick="changePage(1)" title="Próxima página" aria-label="Próxima página">
+                <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+            </button>
+            <button type="button" id="btn-tts-skip-fwd" class="btn btn-nav-arrow" title="Avançar 15 segundos" aria-label="Avançar 15 segundos">
+                <svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 12L6 7v10zM20 12l-7-5v10z"/></svg>
+            </button>
+            <button type="button" class="btn btn-nav-arrow" id="btn-settings" title="Configurações" aria-expanded="false" aria-controls="settings-screen" aria-label="Configurações">
+                <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.1a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 1 1 0 4z"/></svg>
+            </button>
         </div>
     </div>
 </div>
 
 </div>
 
-<script src="./js/app.js?v=20260822d"></script>
+<script src="./js/app.js?v=20260822e"></script>
 </body>
 </html>

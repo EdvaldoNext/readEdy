@@ -382,17 +382,21 @@ var safeStorage = (function() {
     var voiceSelect = document.getElementById('voice-select');
     var rateRange = document.getElementById('rate-range');
     var rateLabel = document.getElementById('rate-label');
+    var MINI_ICON_PLAY  = '<svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+    var MINI_ICON_PAUSE = '<svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.4v14H7zM13.6 5H17v14h-3.4z"/></svg>';
+    var ICON_SUN  = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>';
+    var ICON_MOON = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
+
     function applyTheme(dark) {
         document.body.classList.toggle('dark', dark);
         safeStorage.setItem('readera-theme', dark ? 'dark' : 'light');
         var themeBtn = document.getElementById('btn-theme');
-        if (themeBtn) themeBtn.textContent = dark ? '☀️' : '🌙';
+        if (themeBtn) themeBtn.innerHTML = dark ? ICON_SUN : ICON_MOON;
     }
 
     function setCloudBadge(state, title) {
         var badge = document.getElementById('cloud-badge');
         if (!badge) return;
-        badge.textContent = '☁️';
         var states = ['on', 'off', 'wait', 'pending', 'error'];
         for (var i = 0; i < states.length; i++) {
             badge.classList.remove('cloud-status-' + states[i]);
@@ -1608,6 +1612,8 @@ var safeStorage = (function() {
     }
 
     function scrollTtsHighlightIntoView() {
+        /* A ouvir com a Home à vista: não mexer no scroll da Home */
+        if (homeView) return;
         if (ttsScrollHighlightRaf != null) return;
         ttsScrollHighlightRaf = requestAnimationFrame(function() {
             ttsScrollHighlightRaf = null;
@@ -2056,6 +2062,7 @@ var safeStorage = (function() {
             cls = 'btn-tts-ui tts-state-playing';
         } else if (state === 'continue') {
             title = 'Continuar leitura';
+            cls = 'btn-tts-ui tts-state-continue';
         }
         ['btn-tts', 'btn-tts-float'].forEach(function(id) {
             var btn = document.getElementById(id);
@@ -2063,9 +2070,7 @@ var safeStorage = (function() {
             btn.className = cls;
             btn.title = title;
             btn.setAttribute('aria-label', title);
-            if (!btn.querySelector('.tts-speaker')) {
-                btn.innerHTML = '<span class="tts-speaker" aria-hidden="true">🔊</span><span class="tts-badge-x" aria-hidden="true">✕</span>';
-            }
+            btn.innerHTML = (state === 'playing') ? MINI_ICON_PAUSE : MINI_ICON_PLAY;
         });
         setMiniTtsIcon(state === 'playing');
     }
@@ -2172,15 +2177,17 @@ var safeStorage = (function() {
         setCloudLibraryPanelOpen(false);
     }
 
-    var MINI_ICON_PLAY  = '<svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
-    var MINI_ICON_PAUSE = '<svg class="ico ico-solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.4v14H7zM13.6 5H17v14h-3.4z"/></svg>';
-
-    function setMiniTtsIcon(playing) {
-        var el = document.getElementById('home-mini-tts');
+    /* Play/pause em SVG nos três lugares: card da Home, mini-player e leitor */
+    function setPlayPauseIcon(el, playing) {
         if (!el) return;
         el.innerHTML = playing ? MINI_ICON_PAUSE : MINI_ICON_PLAY;
-        el.title = playing ? 'Parar leitura' : 'Ouvir';
+        el.title = playing ? 'Pausar' : 'Ouvir';
         el.setAttribute('aria-label', el.title);
+    }
+
+    function setMiniTtsIcon(playing) {
+        setPlayPauseIcon(document.getElementById('home-mini-tts'), playing);
+        setPlayPauseIcon(document.getElementById('home-continue-play'), playing);
     }
 
     function bookCoverInitial(title) {
@@ -2459,8 +2466,37 @@ var safeStorage = (function() {
         updateMiniPlayerFromDoc(featured);
     }
 
-    function openFeaturedDocument() {
-        if (homeFeaturedIsOpen) {
+    /* Arranca a voz assim que a página estiver renderizada (o toggle recusa
+       durante o render). Tenta durante alguns segundos e desiste em silêncio. */
+    function startTtsWhenReady(tries) {
+        if (!pdfDoc) return;
+        if (isRendering && (tries || 0) < 20) {
+            setTimeout(function() { startTtsWhenReady((tries || 0) + 1); }, 300);
+            return;
+        }
+        if (!isReading) toggleTTS();
+    }
+
+    /* ▶ na Home: toca o audiobook sem sair da Home.
+       Se o livro em destaque ainda não está carregado, carrega-o em segundo
+       plano (a Home continua à vista) e começa a ler quando estiver pronto. */
+    function playFeaturedAudio() {
+        _unlockAudio();
+        if (pdfDoc && homeFeaturedIsOpen) {
+            toggleTTS();
+            return;
+        }
+        if (homeFeaturedDocId) {
+            openCloudDocumentById(homeFeaturedDocId, { keepHome: true, autoPlay: true });
+            return;
+        }
+        var fi = document.getElementById('file-input');
+        if (fi) fi.click();
+    }
+
+    /* "Visualizar livro": única forma de abrir a página do PDF a partir da Home */
+    function viewFeaturedDocument() {
+        if (pdfDoc && homeFeaturedIsOpen) {
             openReaderView();
             return;
         }
@@ -2483,23 +2519,18 @@ var safeStorage = (function() {
         if (cloudBtn) cloudBtn.addEventListener('click', function() { openHomeView('biblioteca'); });
         var verTodos = document.getElementById('home-btn-ver-todos');
         if (verTodos) verTodos.addEventListener('click', function() { openHomeView('biblioteca'); });
+        /* ▶ só toca — nunca navega para o leitor */
         var continuePlay = document.getElementById('home-continue-play');
-        if (continuePlay) continuePlay.addEventListener('click', openFeaturedDocument);
+        if (continuePlay) continuePlay.addEventListener('click', playFeaturedAudio);
+        var miniTts = document.getElementById('home-mini-tts');
+        if (miniTts) miniTts.addEventListener('click', playFeaturedAudio);
+        /* Ver as páginas do PDF é uma acção explícita */
+        var viewBtn = document.getElementById('home-btn-view-book');
+        if (viewBtn) viewBtn.addEventListener('click', viewFeaturedDocument);
         var miniInfo = document.getElementById('home-mini-info');
         var miniThumb = document.getElementById('home-mini-thumb');
-        if (miniInfo) miniInfo.addEventListener('click', openFeaturedDocument);
-        if (miniThumb) miniThumb.addEventListener('click', openFeaturedDocument);
-        var miniTts = document.getElementById('home-mini-tts');
-        if (miniTts) miniTts.addEventListener('click', function() {
-            /* Livro já aberto: volta à leitura e alterna a voz no mesmo gesto
-               (necessário para desbloquear o áudio em iOS/Safari). */
-            if (homeFeaturedIsOpen) {
-                openReaderView();
-                toggleTTS();
-                return;
-            }
-            openFeaturedDocument();
-        });
+        if (miniInfo) miniInfo.addEventListener('click', viewFeaturedDocument);
+        if (miniThumb) miniThumb.addEventListener('click', viewFeaturedDocument);
         var navItems = document.querySelectorAll('#home-bottom-nav .home-nav-item');
         for (var i = 0; i < navItems.length; i++) {
             (function(btn) {
@@ -2780,12 +2811,15 @@ var safeStorage = (function() {
         });
     }
 
-    function openCloudDocumentById(id) {
+    function openCloudDocumentById(id, opts) {
         if (!id || !readeraSb) return;
+        var keepHome = !!(opts && opts.keepHome);
+        var autoPlay = !!(opts && opts.autoPlay);
         closeCloudLibraryPanel();
-        /* Já é o livro carregado: volta à leitura sem descarregar de novo */
+        /* Já é o livro carregado: não descarrega de novo */
         if (pdfDoc && cloudDocumentId === id) {
-            openReaderView();
+            if (autoPlay) toggleTTS();
+            else if (!keepHome) openReaderView();
             return;
         }
         var gen = ++cloudLoadGen;
@@ -2805,7 +2839,10 @@ var safeStorage = (function() {
                 if (gen !== cloudLoadGen) return;
                 var row = result.data, error = result.error;
                 if (error || !row) throw error || new Error('Documento não encontrado');
-                return openCloudDocumentFromRow(row, true, gen);
+                return openCloudDocumentFromRow(row, true, gen, keepHome).then(function() {
+                    if (gen !== cloudLoadGen) return;
+                    if (autoPlay) startTtsWhenReady(0);
+                });
             }).catch(function(err) {
                 if (gen !== cloudLoadGen) return;
                 console.error(err);
@@ -3215,7 +3252,8 @@ var safeStorage = (function() {
                 updateTtsSeekButtonsVisible();
 
                 document.getElementById('page-info').textContent = num + ' / ' + pdfDoc.numPages;
-                document.getElementById('viewer-container').scrollTop = 0;
+                /* A Home partilha o scroller: só reposicionar no leitor */
+                if (!homeView) document.getElementById('viewer-container').scrollTop = 0;
                 scheduleCloudProgress();
                 updateTtsButtonLabel();
                 syncPageJumpInput(true);
