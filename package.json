@@ -1,0 +1,7 @@
+{
+  "name": "readedy",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/generate-config.js"
+  }
+}

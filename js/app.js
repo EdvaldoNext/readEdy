@@ -3961,7 +3961,7 @@ var safeStorage = (function() {
             initTtsEngine();
             return;
         }
-        setCloudBadge('on', 'Nuvem ligada — PDFs em Storage e metadados na base');
+        setCloudBadge('on', 'Sistema ativo');
         if (!cloudUiBound) {
             cloudUiBound = true;
             document.getElementById('btn-cloud-save').addEventListener('click', savePdfToCloud);

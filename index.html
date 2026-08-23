@@ -19,15 +19,8 @@
     <!-- Supabase JS: local-first → CDN fallback -->
     <script src="./libs/supabase.min.js" onerror="window._SUPABASE_LOCAL_FAILED=true"></script>
     <script>if(window._SUPABASE_LOCAL_FAILED)document.write('<scr'+'ipt src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js" onerror="window._SUPABASEJS_FAILED=true"><\/scr'+'ipt>')</script>
-    <!-- Config inline: projeto dedicado ReadEdy (rxyzqyqsrgscnawetwtl) -->
-    <script>
-    window.READERA_SUPABASE = {
-      url: 'https://rxyzqyqsrgscnawetwtl.supabase.co',
-      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4eXpxeXFzcmdzY25hd2V0d3RsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc0MjkzOTEsImV4cCI6MjEwMzAwNTM5MX0.e1P70z-3ICKxJH5IDm4HATwE04fp2Bw0yOyah8XBt0c'
-    };
-    </script>
-    <!-- config.js = override local (não versionado, gitignored) -->
-    <script src="config.js" onerror="void 0"></script>
+    <!-- config.js gerado a partir de .env (local) ou variáveis Vercel no deploy -->
+    <script src="config.js"></script>
     <!-- ?v= força o navegador/CDN a buscar a versão nova a cada deploy.
          Ao alterar css/app.css ou js/app.js, incremente este valor. -->
     <link rel="stylesheet" href="./css/app.css?v=20260823a">
