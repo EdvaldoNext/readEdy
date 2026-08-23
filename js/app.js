@@ -5353,11 +5353,17 @@ var safeStorage = (function() {
             if (loggedIn && active && !needsLink) authUser.classList.remove('hidden');
             else authUser.classList.add('hidden');
         }
+        var signoutLogged = document.getElementById('home-btn-signout-logged');
+        if (signoutLogged) {
+            if (loggedIn && !needsLink) signoutLogged.classList.remove('hidden');
+            else signoutLogged.classList.add('hidden');
+        }
     }
 
     function wireAuthUi() {
         var btnLinkGoogle = document.getElementById('home-btn-link-google');
         var btnSignOut = document.getElementById('home-btn-signout');
+        var btnSignOutLogged = document.getElementById('home-btn-signout-logged');
         var emailInput = document.getElementById('home-auth-email-input');
         var form = document.getElementById('home-auth-email-form');
         var recoverToggle = document.getElementById('home-btn-recover-toggle');
@@ -5399,6 +5405,11 @@ var safeStorage = (function() {
         }
         if (btnSignOut) {
             btnSignOut.addEventListener('click', function() {
+                if (window.ReadEdyAuth) ReadEdyAuth.signOut();
+            });
+        }
+        if (btnSignOutLogged) {
+            btnSignOutLogged.addEventListener('click', function() {
                 if (window.ReadEdyAuth) ReadEdyAuth.signOut();
             });
         }
