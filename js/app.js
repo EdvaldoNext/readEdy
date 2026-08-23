@@ -243,7 +243,11 @@ var safeStorage = (function() {
     var cloudLibrarySuppressClose = false;
     var cloudLibraryRows = [];
     var homeFeaturedDocId = null;
+    var homeFeaturedIsOpen = false;
     var homeActiveTab = 'inicio';
+    /* homeView: com um PDF carregado, indica se o shell mostra a Home
+       (Continue ouvindo / Biblioteca / Conta) em vez da área de leitura. */
+    var homeView = false;
     var LS_AUTO_CLOUD = 'readera-auto-cloud';
     var LS_TTS_ENGINE = 'readera-tts-engine';
     var DEFAULT_TTS_ENGINE = 'proxy';
@@ -1659,7 +1663,8 @@ var safeStorage = (function() {
 
     function syncChromeHiddenState() {
         var hidePref = safeStorage.getItem('readera-hide-chrome') === '1';
-        document.body.classList.toggle('ui-chrome-hidden', hidePref && !!pdfDoc);
+        /* O modo imersivo só se aplica à área de leitura, nunca à Home */
+        document.body.classList.toggle('ui-chrome-hidden', hidePref && !!pdfDoc && !homeView);
     }
 
     function applyUiPrefs() {
@@ -2062,6 +2067,13 @@ var safeStorage = (function() {
                 btn.innerHTML = '<span class="tts-speaker" aria-hidden="true">🔊</span><span class="tts-badge-x" aria-hidden="true">✕</span>';
             }
         });
+        var miniTts = document.getElementById('home-mini-tts');
+        if (miniTts) {
+            var playing = state === 'playing';
+            miniTts.textContent = playing ? '⏸' : '▶';
+            miniTts.title = playing ? 'Parar leitura' : 'Ouvir';
+            miniTts.setAttribute('aria-label', miniTts.title);
+        }
     }
 
     function updateTtsButtonLabel() {
@@ -2208,17 +2220,75 @@ var safeStorage = (function() {
         homeActiveTab = tab || 'inicio';
         ['inicio', 'biblioteca', 'conta'].forEach(function(t) {
             var panel = document.getElementById('home-tab-' + t);
-            if (panel) panel.classList.toggle('hidden', t !== homeActiveTab);
+            if (!panel) return;
+            if (t === homeActiveTab) panel.classList.remove('hidden');
+            else panel.classList.add('hidden');
         });
+        updateHomeNavActive();
+    }
+
+    /* Aba destacada só quando a Home está à vista — durante a leitura
+       nenhuma aba fica ativa (o utilizador está no livro). */
+    function updateHomeNavActive() {
+        var onHome = !document.body.classList.contains('pdf-is-open');
         var navItems = document.querySelectorAll('#home-bottom-nav .home-nav-item');
         for (var i = 0; i < navItems.length; i++) {
             var btn = navItems[i];
-            var nav = btn.getAttribute('data-home-nav');
-            var active = nav === homeActiveTab;
-            btn.classList.toggle('is-active', active);
-            if (active) btn.setAttribute('aria-current', 'page');
-            else btn.removeAttribute('aria-current');
+            var active = onHome && btn.getAttribute('data-home-nav') === homeActiveTab;
+            if (active) {
+                btn.classList.add('is-active');
+                btn.setAttribute('aria-current', 'page');
+            } else {
+                btn.classList.remove('is-active');
+                btn.removeAttribute('aria-current');
+            }
         }
+    }
+
+    /* ══ Shell da aplicação ═══════════════════════════════════════
+       Um único layout: cabeçalho + conteúdo + navegação persistente.
+       showHome = sem PDF carregado, ou PDF carregado com a Home à vista. */
+    function applyShellState() {
+        var showHome = homeView || !pdfDoc;
+        var welcome = document.getElementById('welcome');
+        var renderArea = document.getElementById('pdf-render-area');
+        var navControls = document.getElementById('nav-controls');
+        /* classList.toggle com 2º argumento não é fiável em WebKit antigo (TVs) */
+        if (showHome) document.body.classList.remove('pdf-is-open');
+        else document.body.classList.add('pdf-is-open');
+        if (welcome) {
+            if (showHome) welcome.classList.remove('hidden');
+            else welcome.classList.add('hidden');
+        }
+        if (renderArea) renderArea.style.display = showHome ? 'none' : '';
+        if (navControls) {
+            if (showHome || !pdfDoc) navControls.classList.add('hidden');
+            else navControls.classList.remove('hidden');
+        }
+        syncChromeHiddenState();
+        refreshHomeHero();
+        updateHomeNavActive();
+    }
+
+    function openHomeView(tab) {
+        homeView = true;
+        applyShellState();
+        setHomeTab(tab || homeActiveTab);
+        var viewer = document.getElementById('viewer-container');
+        if (viewer) viewer.scrollTop = 0;
+    }
+
+    function openReaderView() {
+        if (!pdfDoc) return;
+        homeView = false;
+        applyShellState();
+        /* A área de render estava oculta: refazer o layout com a largura real */
+        schedulePdfRelayout();
+    }
+
+    function setReaderTitle(title) {
+        var el = document.getElementById('reader-book-title');
+        if (el) el.textContent = title || 'Leitura';
     }
 
     function updateHomeContinue(row) {
@@ -2339,41 +2409,60 @@ var safeStorage = (function() {
         if (!mini) return;
         if (!row || document.body.classList.contains('pdf-is-open')) {
             mini.classList.add('hidden');
+            document.body.classList.remove('has-mini-player');
             return;
         }
         mini.classList.remove('hidden');
+        document.body.classList.add('has-mini-player');
         var titleEl = document.getElementById('home-mini-title');
         var fillEl = document.getElementById('home-mini-progress-fill');
         var thumbEl = document.getElementById('home-mini-thumb');
+        var ttsEl = document.getElementById('home-mini-tts');
         var title = row.title || row.id;
         if (titleEl) titleEl.textContent = title;
         if (fillEl) fillEl.style.width = docProgressPct(row) + '%';
         applyBookCoverEl(thumbEl, title);
+        if (ttsEl) {
+            var playing = row.isOpen && isReading;
+            ttsEl.textContent = playing ? '⏸' : '▶';
+            ttsEl.title = playing ? 'Parar leitura' : 'Ouvir';
+            ttsEl.setAttribute('aria-label', ttsEl.title);
+        }
     }
 
     function renderHomeFromCloudLibrary(rows) {
         cloudLibraryRows = rows || [];
-        var featured = pickFeaturedDoc(cloudLibraryRows);
-        homeFeaturedDocId = featured ? featured.id : null;
-        updateHomeContinue(featured);
         renderHomeCarousel(cloudLibraryRows);
         renderHomeLibraryList(cloudLibraryRows);
+        refreshHomeHero();
+    }
+
+    /* O livro aberto tem prioridade no "Continue ouvindo" e no mini-player,
+       mesmo que ainda não esteja guardado na nuvem. */
+    function currentOpenBookRow() {
+        if (!pdfDoc) return null;
+        return {
+            id: cloudDocumentId,
+            title: currentBookTitle || lastOpenedFileName || 'Documento',
+            last_page: currentPageNum || pageNum,
+            num_pages: pdfDoc.numPages,
+            isOpen: true
+        };
+    }
+
+    function refreshHomeHero() {
+        var featured = currentOpenBookRow() || pickFeaturedDoc(cloudLibraryRows);
+        homeFeaturedDocId = featured ? featured.id : null;
+        homeFeaturedIsOpen = !!(featured && featured.isOpen);
+        updateHomeContinue(featured);
         updateMiniPlayerFromDoc(featured);
     }
 
-    function updateHomeChrome() {
-        var onHome = !document.body.classList.contains('pdf-is-open');
-        var welcome = document.getElementById('welcome');
-        if (welcome) welcome.classList.toggle('hidden', !onHome);
-        if (onHome && !homeFeaturedDocId) {
-            var mini = document.getElementById('home-mini-player');
-            if (mini) mini.classList.add('hidden');
-        } else if (onHome) {
-            updateMiniPlayerFromDoc(pickFeaturedDoc(cloudLibraryRows));
-        }
-    }
-
     function openFeaturedDocument() {
+        if (homeFeaturedIsOpen) {
+            openReaderView();
+            return;
+        }
         if (homeFeaturedDocId) openCloudDocumentById(homeFeaturedDocId);
     }
 
@@ -2390,9 +2479,9 @@ var safeStorage = (function() {
             if (el) el.addEventListener('click', openLocalPdf);
         });
         var cloudBtn = document.getElementById('home-btn-cloud');
-        if (cloudBtn) cloudBtn.addEventListener('click', function() { setHomeTab('biblioteca'); });
+        if (cloudBtn) cloudBtn.addEventListener('click', function() { openHomeView('biblioteca'); });
         var verTodos = document.getElementById('home-btn-ver-todos');
-        if (verTodos) verTodos.addEventListener('click', function() { setHomeTab('biblioteca'); });
+        if (verTodos) verTodos.addEventListener('click', function() { openHomeView('biblioteca'); });
         var continuePlay = document.getElementById('home-continue-play');
         if (continuePlay) continuePlay.addEventListener('click', openFeaturedDocument);
         var miniInfo = document.getElementById('home-mini-info');
@@ -2400,17 +2489,28 @@ var safeStorage = (function() {
         if (miniInfo) miniInfo.addEventListener('click', openFeaturedDocument);
         if (miniThumb) miniThumb.addEventListener('click', openFeaturedDocument);
         var miniTts = document.getElementById('home-mini-tts');
-        if (miniTts) miniTts.addEventListener('click', openFeaturedDocument);
+        if (miniTts) miniTts.addEventListener('click', function() {
+            /* Livro já aberto: volta à leitura e alterna a voz no mesmo gesto
+               (necessário para desbloquear o áudio em iOS/Safari). */
+            if (homeFeaturedIsOpen) {
+                openReaderView();
+                toggleTTS();
+                return;
+            }
+            openFeaturedDocument();
+        });
         var navItems = document.querySelectorAll('#home-bottom-nav .home-nav-item');
         for (var i = 0; i < navItems.length; i++) {
             (function(btn) {
                 btn.addEventListener('click', function() {
-                    setHomeTab(btn.getAttribute('data-home-nav'));
+                    openHomeView(btn.getAttribute('data-home-nav'));
                 });
             })(navItems[i]);
         }
+        var backBtn = document.getElementById('btn-reader-back');
+        if (backBtn) backBtn.addEventListener('click', function() { openHomeView('inicio'); });
         var headerAccount = document.getElementById('home-header-account');
-        if (headerAccount) headerAccount.addEventListener('click', function() { setHomeTab('conta'); });
+        if (headerAccount) headerAccount.addEventListener('click', function() { openHomeView('conta'); });
         var settingsBtn = document.getElementById('home-btn-settings');
         if (settingsBtn) settingsBtn.addEventListener('click', function() {
             if (typeof window._readEdyOpenSettings === 'function') window._readEdyOpenSettings();
@@ -2422,7 +2522,7 @@ var safeStorage = (function() {
         });
         setHomeTab('inicio');
         renderHomeFromCloudLibrary([]);
-        updateHomeChrome();
+        applyShellState();
     }
 
     function resetCloudLibraryTrigger() {
@@ -2682,6 +2782,11 @@ var safeStorage = (function() {
     function openCloudDocumentById(id) {
         if (!id || !readeraSb) return;
         closeCloudLibraryPanel();
+        /* Já é o livro carregado: volta à leitura sem descarregar de novo */
+        if (pdfDoc && cloudDocumentId === id) {
+            openReaderView();
+            return;
+        }
         var gen = ++cloudLoadGen;
         setAppLoading(true, 'Carregando PDF da nuvem…', 'pdf');
         teardownCurrentPdf();
@@ -2713,7 +2818,7 @@ var safeStorage = (function() {
             });
     }
 
-    function openCloudDocumentFromRow(row, resetSelectValue, loadGen) {
+    function openCloudDocumentFromRow(row, resetSelectValue, loadGen, startInHome) {
         if (loadGen == null) loadGen = cloudLoadGen;
         if (!row || !row.storage_path) {
             return Promise.reject(new Error('Documento sem arquivo na nuvem'));
@@ -2726,7 +2831,8 @@ var safeStorage = (function() {
             currentBookTitle = lastOpenedFileName;
             return loadPdfFromArrayBuffer(buf, {
                 documentId: row.id,
-                initialPage: row.last_page || 1
+                initialPage: row.last_page || 1,
+                startInHome: !!startInHome
             }, loadGen);
         }).then(function() {
             if (loadGen !== cloudLoadGen) return;
@@ -2754,7 +2860,9 @@ var safeStorage = (function() {
                     }
                 }, 60000);
 
-                return openCloudDocumentFromRow(row, false, gen).catch(function(err) {
+                /* Retoma silenciosa: o livro fica pronto na Home ("Continue
+                   ouvindo") em vez de saltar direto para a leitura. */
+                return openCloudDocumentFromRow(row, false, gen, true).catch(function(err) {
                     console.warn('Retoma nuvem:', err);
                     persistLastCloudDocId(null);
                 }).then(function() {
@@ -2919,15 +3027,13 @@ var safeStorage = (function() {
             pdfDoc = doc;
             pdfLoadingTask = null;
             cloudDocumentId = opts && opts.documentId ? opts.documentId : null;
-            document.getElementById('welcome').classList.add('hidden');
-            document.getElementById('nav-controls').classList.remove('hidden');
-            document.body.classList.add('pdf-is-open');
-            updateHomeChrome();
-            syncChromeHiddenState();
             var want = opts && opts.initialPage ? opts.initialPage : 1;
             pageNum = Math.min(Math.max(1, want), pdfDoc.numPages);
             currentPageNum = pageNum;
             currentBookTitle = lastOpenedFileName || 'Lendo Livro PDF';
+            setReaderTitle(currentBookTitle);
+            homeView = !!(opts && opts.startInHome);
+            applyShellState();
             return renderPage(pageNum);
         }).then(function() {
             if (loadGen !== cloudLoadGen) return;
@@ -2945,6 +3051,7 @@ var safeStorage = (function() {
             }
         }).then(function() {
             if (loadGen === cloudLoadGen) setAppLoading(false);
+            if (!pdfDoc) applyShellState();
         });
     }
 
@@ -3111,6 +3218,7 @@ var safeStorage = (function() {
                 scheduleCloudProgress();
                 updateTtsButtonLabel();
                 syncPageJumpInput(true);
+                refreshHomeHero();
 
                 if (ttsBuilt.text && ttsBuilt.text.trim()) {
                     preFetchTtsAudio(num, ttsBuilt.text);
@@ -3625,12 +3733,7 @@ var safeStorage = (function() {
     });
 
     function updateLayoutToggleVisible() {
-        if (pdfDoc) {
-            document.body.classList.add('pdf-is-open');
-        } else {
-            document.body.classList.remove('pdf-is-open');
-        }
-        updateHomeChrome();
+        applyShellState();
     }
 
     /* Modo leitura larga: PDF usa o lado longo do ecrã, texto permanece horizontal */

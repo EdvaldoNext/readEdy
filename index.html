@@ -46,7 +46,8 @@
         <button type="button" class="home-avatar-btn" id="home-header-account" title="Conta" aria-label="Conta">👤</button>
     </div>
     <div class="header-reader-bar">
-        <span class="header-brand"><b>ReadEdy</b> Web Pro</span>
+        <button type="button" class="reader-back-btn" id="btn-reader-back" title="Voltar ao início" aria-label="Voltar ao início">←</button>
+        <span class="reader-book-title" id="reader-book-title">Leitura</span>
         <div class="header-actions">
             <button type="button" id="cloud-badge" class="hdr-icon-btn cloud-status-wait" title="Estado da nuvem" aria-label="Estado da nuvem" disabled>☁️</button>
             <div class="cloud-library-wrap hdr-library-select hidden" id="cloud-library-wrap" title="Abrir PDF salvo na nuvem">
@@ -55,7 +56,7 @@
             </div>
             <button type="button" class="hdr-icon-btn hidden" id="btn-cloud-save" title="Guardar PDF na nuvem" aria-label="Guardar na nuvem">☁️⬆</button>
             <button type="button" class="hdr-icon-btn hdr-icon-danger hidden" id="btn-cloud-delete" title="Apagar todos os PDFs da nuvem" aria-label="Apagar todos os PDFs da nuvem">🗑</button>
-            <button type="button" class="hdr-icon-btn" id="btn-theme" title="Tema claro/escuro" aria-label="Alternar tema">🌙</button>
+            <button type="button" class="hdr-icon-btn" id="btn-theme" title="Inverter cores da página do PDF" aria-label="Inverter cores da página do PDF">🌙</button>
             <button type="button" class="hdr-icon-btn hdr-icon-primary" id="btn-open-pdf" title="Abrir PDF" aria-label="Abrir PDF" onclick="document.getElementById('file-input').click()">📂</button>
         </div>
     </div>
@@ -203,7 +204,7 @@
             </div>
             <div class="home-account-actions">
                 <button type="button" class="home-account-btn" id="home-btn-settings">⚙️ Configurações</button>
-                <button type="button" class="home-account-btn" id="home-btn-theme">🌙 Tema claro/escuro</button>
+                <button type="button" class="home-account-btn" id="home-btn-theme">🌗 Inverter cores do PDF</button>
                 <button type="button" class="home-account-btn" id="home-btn-open-pdf-account">📄 Abrir PDF local</button>
             </div>
             <section class="home-pro-banner home-pro-banner--compact" aria-label="ReadEdy Pro">
@@ -242,7 +243,7 @@
         <span class="home-mini-title" id="home-mini-title">—</span>
         <span class="home-mini-progress-track"><span class="home-mini-progress-fill" id="home-mini-progress-fill"></span></span>
     </button>
-    <button type="button" class="home-mini-tts" id="home-mini-tts" title="Ouvir / parar" aria-label="Ouvir ou parar">⏸</button>
+    <button type="button" class="home-mini-tts" id="home-mini-tts" title="Ouvir" aria-label="Ouvir">▶</button>
 </div>
 
 <nav id="home-bottom-nav" class="home-bottom-nav" aria-label="Navegação principal">
