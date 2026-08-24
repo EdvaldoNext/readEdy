@@ -2218,10 +2218,22 @@ var safeStorage = (function() {
     }
 
     function ownedDocuments() {
-        var q = readeraSb.from('documents');
+        var table = readeraSb.from('documents');
         var uid = getAuthUserId();
-        if (uid) q = q.eq('user_id', uid);
-        return q;
+        function scoped(q) {
+            return uid ? q.eq('user_id', uid) : q;
+        }
+        return {
+            select: function(columns, options) {
+                return scoped(table.select(columns, options));
+            },
+            update: function(values, options) {
+                return scoped(table.update(values, options));
+            },
+            'delete': function(options) {
+                return scoped(table.delete(options));
+            }
+        };
     }
 
     function setDocumentDeletedAt(id, deletedAt) {
@@ -4602,7 +4614,7 @@ var safeStorage = (function() {
             if (cloudDocumentId) persistLastCloudDocId(cloudDocumentId);
             if (cloudDocumentId && pdfCacheBytes) ensureCoverForBytes(cloudDocumentId, pdfCacheBytes);
             if (!cloudDocumentId && pdfCacheBytes && readeraSb && safeStorage.getItem(LS_AUTO_CLOUD) !== '0') {
-                attemptAutoCloudSync();
+                try { attemptAutoCloudSync(); } catch (syncErr) { console.warn('Auto-nuvem:', syncErr); }
             }
         }).catch(function(err) {
             if (loadGen !== cloudLoadGen) return;
