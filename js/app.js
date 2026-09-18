@@ -252,6 +252,8 @@ var safeStorage = (function() {
     var homeFeaturedDocId = null;
     var homeFeaturedIsOpen = false;
     var homeActiveTab = 'inicio';
+    var accessLockReady = false;
+    var accessLockForcedConta = false;
     var homeSearchQuery = '';
     var libraryViewMode = 'all';
     var LS_TRASH = 'readera-trash-v1';
@@ -848,7 +850,16 @@ var safeStorage = (function() {
         return false;
     }
 
+    function urlWantsAccountTab() {
+        try {
+            return new URL(window.location.href).searchParams.get('tab') === 'conta';
+        } catch (e) {
+            return false;
+        }
+    }
+
     function applyAccessLock() {
+        if (!accessLockReady) return;
         var locked = !canUsePremiumFeatures();
         if (locked) document.body.classList.add('access-locked');
         else document.body.classList.remove('access-locked');
@@ -856,7 +867,18 @@ var safeStorage = (function() {
             if (typeof isReading !== 'undefined' && isReading && typeof stopTTS === 'function') {
                 try { stopTTS(); } catch (e) {}
             }
-            if (!homeView || homeActiveTab !== 'conta') openHomeView('conta');
+            if (!homeView || homeActiveTab !== 'conta') {
+                accessLockForcedConta = true;
+                openHomeView('conta');
+            } else if (!urlWantsAccountTab()) {
+                accessLockForcedConta = true;
+            }
+            return;
+        }
+        if (accessLockForcedConta && homeActiveTab === 'conta') {
+            accessLockForcedConta = false;
+            var recovering = window.ReadEdyAuth && ReadEdyAuth.isPasswordRecovery();
+            if (!recovering && !urlWantsAccountTab()) openHomeView('inicio');
         }
     }
 
@@ -3463,8 +3485,9 @@ var safeStorage = (function() {
         });
     }
 
-    function openHomeView(tab) {
+    function openHomeView(tab, userInitiated) {
         tab = tab || homeActiveTab;
+        if (userInitiated) accessLockForcedConta = false;
         if (tab !== 'conta' && !canUsePremiumFeatures()) {
             tab = 'conta';
             showNotification('Crie a conta e pague para usar o ReadEdy.', true);
@@ -3856,7 +3879,7 @@ var safeStorage = (function() {
                 btn.addEventListener('click', function() {
                     var tab = btn.getAttribute('data-home-nav');
                     if (tab !== 'conta' && !requirePaidAccess()) return;
-                    openHomeView(tab);
+                    openHomeView(tab, true);
                 });
             })(navItems[i]);
         }
@@ -3943,7 +3966,7 @@ var safeStorage = (function() {
         var backBtn = document.getElementById('btn-reader-back');
         if (backBtn) backBtn.addEventListener('click', function() { openHomeView('inicio'); });
         var headerAccount = document.getElementById('home-header-account');
-        if (headerAccount) headerAccount.addEventListener('click', function() { openHomeView('conta'); });
+        if (headerAccount) headerAccount.addEventListener('click', function() { openHomeView('conta', true); });
         var settingsBtn = document.getElementById('home-btn-settings');
         if (settingsBtn) settingsBtn.addEventListener('click', function() {
             if (typeof window._readEdyOpenSettings === 'function') window._readEdyOpenSettings();
@@ -4114,6 +4137,7 @@ var safeStorage = (function() {
             }
         }).then(function() {
             if (window.ReadEdyAuth) ReadEdyAuth.logSessionStart();
+            accessLockReady = true;
             updateAccountUi();
             applyAccessLock();
             trackSiteVisit();
@@ -4131,12 +4155,21 @@ var safeStorage = (function() {
         }
         if (window.ReadEdyAuth) {
             ReadEdyAuth.onAuthStateChange(function() {
-                if (window.ReadEdyBilling) ReadEdyBilling.refresh(readeraSb);
-                updateAccountUi();
-                applyAccessLock();
+                var afterBilling = window.ReadEdyBilling
+                    ? ReadEdyBilling.refresh(readeraSb)
+                    : Promise.resolve();
+                afterBilling.then(function() {
+                    accessLockReady = true;
+                    updateAccountUi();
+                    applyAccessLock();
+                    applyTtsEngineFromPreference({ invalidateCache: false });
+                }).catch(function() {
+                    accessLockReady = true;
+                    updateAccountUi();
+                    applyAccessLock();
+                });
                 updateCloudPrefsVisibility();
                 updateCloudChrome();
-                applyTtsEngineFromPreference({ invalidateCache: false });
                 if (ReadEdyAuth.isLoggedIn()) {
                     pullUserPreferences();
                     refreshCloudLibrary().catch(function() {});
@@ -5658,6 +5691,7 @@ var safeStorage = (function() {
                 showNotification(signupMode === 'signup'
                     ? 'Conta criada. Escolha o plano para pagar.'
                     : 'Bem-vindo de volta.', false);
+                if (signupMode !== 'signup' && canUsePremiumFeatures()) openHomeView('inicio');
             }).catch(function(err) {
                 showNotification(translateAuthError(err), true);
             }).then(function() {
@@ -5832,7 +5866,7 @@ var safeStorage = (function() {
         document.querySelectorAll('.sidebar-premium-btn, .home-pro-banner').forEach(function(btn) {
             btn.addEventListener('click', function(e) {
                 e.preventDefault();
-                openHomeView('conta');
+                openHomeView('conta', true);
             });
         });
         var manageBtn = document.getElementById('home-btn-manage-subscription');
@@ -5857,4 +5891,3 @@ var safeStorage = (function() {
     } catch (e) {}
     initSupabaseClient();
     wireHomeUi();
-    applyAccessLock();
