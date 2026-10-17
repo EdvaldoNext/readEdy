@@ -5550,7 +5550,7 @@ var safeStorage = (function() {
             else subEl.textContent = 'Conta sem assinatura ativa';
         }
         if (planEl && window.ReadEdyBilling) {
-            if (!loggedIn && !needsLink) planEl.textContent = 'Planos a partir de R$ 9,99/mês';
+            if (!loggedIn && !needsLink) planEl.textContent = 'Planos a partir de R$ 5,99/mês';
             else if (needsLink) planEl.textContent = 'Último passo: vincular conta Google';
             else if (isAdminUser) planEl.textContent = 'Plano: Vitalício';
             else if (active) planEl.textContent = 'Plano: ' + ReadEdyBilling.planLabel();
