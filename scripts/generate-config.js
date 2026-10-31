@@ -33,12 +33,12 @@ function escapeJsString(value) {
 }
 
 const fileEnv = loadEnvFile(path.join(ROOT, '.env'));
-const url = process.env.SUPABASE_URL || fileEnv.SUPABASE_URL || '';
-const anonKey = process.env.SUPABASE_ANON_KEY || fileEnv.SUPABASE_ANON_KEY || '';
+const url = process.env.READEDY_API_URL || fileEnv.READEDY_API_URL || process.env.SUPABASE_URL || fileEnv.SUPABASE_URL || '';
+const anonKey = process.env.READEDY_API_KEY || fileEnv.READEDY_API_KEY || process.env.SUPABASE_ANON_KEY || fileEnv.SUPABASE_ANON_KEY || 'readedy-public';
 
-if (!url || !anonKey) {
+if (!url) {
   console.warn(
-    '[generate-config] SUPABASE_URL ou SUPABASE_ANON_KEY ausentes — config.js não gerado.'
+    '[generate-config] READEDY_API_URL ausente — config.js não gerado.'
   );
   process.exit(0);
 }

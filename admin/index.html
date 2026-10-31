@@ -7,7 +7,7 @@
     <title>ReadEdy Admin</title>
     <link rel="stylesheet" href="/css/app.css?v=20260824a">
     <link rel="stylesheet" href="/admin/css/admin.css?v=20260824a">
-    <script src="/libs/supabase.min.js"></script>
+    <script src="/js/cloud-client.js?v=20261031a"></script>
     <script src="/config.js"></script>
 </head>
 <body class="admin-body">
@@ -35,7 +35,7 @@
             <main class="home-screen admin-main">
                 <section id="admin-login" class="home-continue-card admin-card">
                     <h2 class="home-section-label">Acesso administrativo</h2>
-                    <p class="home-auth-lead">Entre com uma conta que tenha role <code>admin</code> no Supabase.</p>
+                    <p class="home-auth-lead">Entre com uma conta que tenha role admin.</p>
                     <button type="button" id="admin-btn-google" class="home-account-btn home-auth-btn-primary">Entrar com Google</button>
                     <form id="admin-email-form" class="home-auth-email-form">
                         <input type="email" id="admin-email" class="home-auth-email-input" placeholder="E-mail" required>
@@ -75,7 +75,7 @@
                             <p id="stat-mrr" class="admin-stat-value">—</p>
                         </article>
                         <article class="home-continue-card admin-stat">
-                            <h3 class="home-card-label">Storage Supabase</h3>
+                            <h3 class="home-card-label">Armazenamento</h3>
                             <p id="stat-storage" class="admin-stat-value">—</p>
                         </article>
                     </div>
@@ -137,6 +137,6 @@
         </div>
     </div>
     <script src="/js/auth.js"></script>
-    <script src="/admin/js/admin.js?v=20260824a"></script>
+    <script src="/admin/js/admin.js?v=20261031a"></script>
 </body>
 </html>

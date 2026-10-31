@@ -31,7 +31,7 @@ VALUES
   ('recovery_redirect_query', 'tab=conta', 0),
   ('post_login_links_checkout', 'true', 0),
   ('app_url_env', 'READEDY_APP_URL', 1),
-  ('wired_into_app', 'false', 0);
+  ('wired_into_app', 'true', 0);
 
 INSERT INTO billing_settings (key, value, is_secret)
 VALUES
@@ -56,4 +56,4 @@ VALUES
   ('status_map', '{"authorized":"active","paused":"past_due","cancelled":"canceled","pending":"pending"}', 0),
   ('payment_approved_sets_status', 'active', 0),
   ('active_plan_slugs', 'basic_monthly,premium_monthly', 0),
-  ('wired_into_app', 'false', 0);
+  ('wired_into_app', 'true', 0);

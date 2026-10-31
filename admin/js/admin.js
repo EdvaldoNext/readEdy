@@ -26,11 +26,11 @@
 
     function initClient() {
         var cfg = window.READERA_SUPABASE;
-        if (!cfg || !cfg.url || !cfg.anonKey || !window.supabase) {
-            setMsg('config.js ou Supabase JS ausente.');
+        if (!cfg || !cfg.url || !cfg.anonKey || !window.ReadEdyCloud) {
+            setMsg('config.js ou cliente da nuvem ausente.');
             return null;
         }
-        return window.supabase.createClient(cfg.url, cfg.anonKey, {
+        return window.ReadEdyCloud.createClient(cfg.url, cfg.anonKey, {
             auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
         });
     }

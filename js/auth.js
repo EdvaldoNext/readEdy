@@ -163,7 +163,7 @@ window.ReadEdyAuth = (function() {
     }
 
     function signInWithGoogle() {
-        if (!client) return Promise.reject(new Error('Cliente Supabase não iniciado'));
+        if (!client) return Promise.reject(new Error('Cliente da nuvem não iniciado'));
         return client.auth.signInWithOAuth({
             provider: 'google',
             options: { redirectTo: getRedirectTo() }
@@ -171,7 +171,7 @@ window.ReadEdyAuth = (function() {
     }
 
     function signInWithEmail(email) {
-        if (!client) return Promise.reject(new Error('Cliente Supabase não iniciado'));
+        if (!client) return Promise.reject(new Error('Cliente da nuvem não iniciado'));
         if (!email) return Promise.reject(new Error('Informe o e-mail'));
         return client.auth.signInWithOtp({
             email: email,
@@ -180,7 +180,7 @@ window.ReadEdyAuth = (function() {
     }
 
     function signUpWithPassword(email, password) {
-        if (!client) return Promise.reject(new Error('Cliente Supabase não iniciado'));
+        if (!client) return Promise.reject(new Error('Cliente da nuvem não iniciado'));
         if (!email) return Promise.reject(new Error('Informe o e-mail'));
         if (!password || password.length < 6) {
             return Promise.reject(new Error('A senha precisa ter no mínimo 6 caracteres'));
@@ -196,7 +196,7 @@ window.ReadEdyAuth = (function() {
     }
 
     function signInWithPassword(email, password) {
-        if (!client) return Promise.reject(new Error('Cliente Supabase não iniciado'));
+        if (!client) return Promise.reject(new Error('Cliente da nuvem não iniciado'));
         if (!email || !password) return Promise.reject(new Error('Informe e-mail e senha'));
         return client.auth.signInWithPassword({
             email: email,
@@ -208,7 +208,7 @@ window.ReadEdyAuth = (function() {
     }
 
     function resetPasswordForEmail(email) {
-        if (!client) return Promise.reject(new Error('Cliente Supabase não iniciado'));
+        if (!client) return Promise.reject(new Error('Cliente da nuvem não iniciado'));
         if (!email) return Promise.reject(new Error('Informe o e-mail'));
         return client.auth.resetPasswordForEmail(email, {
             redirectTo: getRecoveryRedirectTo()
@@ -219,7 +219,7 @@ window.ReadEdyAuth = (function() {
     }
 
     function updatePassword(password) {
-        if (!client) return Promise.reject(new Error('Cliente Supabase não iniciado'));
+        if (!client) return Promise.reject(new Error('Cliente da nuvem não iniciado'));
         if (!isLoggedIn()) return Promise.reject(new Error('Sessão expirada. Peça um novo link.'));
         if (!password || password.length < 6) {
             return Promise.reject(new Error('A senha precisa ter no mínimo 6 caracteres'));

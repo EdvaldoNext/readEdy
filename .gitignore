@@ -2,6 +2,8 @@
 .env
 .env.local
 .env.*.local
+.dev.vars
+worker/dist.js
 config.js
 
 # Cache da CLI Supabase (não versionar)

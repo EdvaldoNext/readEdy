@@ -4095,24 +4095,13 @@ var safeStorage = (function() {
             initTtsEngine();
             return;
         }
-        var sb = window.supabase;
-        /* Em TVs a biblioteca pode demorar mais para carregar — retry após 3 s */
-        if (!sb || typeof sb.createClient !== 'function') {
-            setCloudBadge('wait', 'Aguardando biblioteca da nuvem…');
+        if (!window.ReadEdyCloud || typeof window.ReadEdyCloud.createClient !== 'function') {
+            setCloudBadge('error', 'Erro ao carregar biblioteca da nuvem');
+            updateCloudPrefsVisibility();
             initTtsEngine();
-            setTimeout(function() {
-                var sb2 = window.supabase;
-                if (!sb2 || typeof sb2.createClient !== 'function') {
-                    setCloudBadge('error', 'Erro ao carregar biblioteca da nuvem');
-                    updateCloudPrefsVisibility();
-                    initTtsEngine();
-                } else {
-                    _doInitSupabase(cfg, sb2, badge);
-                }
-            }, 3000);
             return;
         }
-        _doInitSupabase(cfg, sb, badge);
+        _doInitSupabase(cfg, window.ReadEdyCloud, badge);
     }
 
     function _doInitSupabase(cfg, sb, badge) {

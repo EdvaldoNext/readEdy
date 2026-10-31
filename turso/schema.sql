@@ -1,4 +1,4 @@
--- ReadEdy no Turso (libSQL). Preparado para a migração; o app ainda usa o Supabase.
+-- ReadEdy no Turso (libSQL). O app fala com este banco pela API na Cloudflare.
 -- Segredos ficam em variáveis de ambiente. As tabelas *_settings guardam só o nome da variável.
 
 CREATE TABLE users (
@@ -32,7 +32,9 @@ CREATE TABLE auth_sessions (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ip TEXT,
   user_agent TEXT,
-  revoked_at TEXT
+  revoked_at TEXT,
+  refresh_hash TEXT,
+  access_expires_at TEXT
 );
 
 CREATE TABLE auth_one_time_tokens (
@@ -164,6 +166,7 @@ CREATE TABLE site_visits (
 );
 
 CREATE INDEX auth_sessions_user_idx ON auth_sessions (user_id, created_at DESC);
+CREATE UNIQUE INDEX auth_sessions_refresh_idx ON auth_sessions (refresh_hash) WHERE refresh_hash IS NOT NULL;
 CREATE INDEX auth_tokens_email_purpose_idx ON auth_one_time_tokens (email, purpose, created_at DESC);
 CREATE INDEX documents_user_updated_idx ON documents (user_id, updated_at DESC);
 CREATE INDEX documents_user_active_updated_idx ON documents (user_id, updated_at DESC) WHERE deleted_at IS NULL;

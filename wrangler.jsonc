@@ -1,0 +1,16 @@
+{
+  "name": "readedy-api",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-31",
+  "vars": {
+    "READEDY_APP_URL": "https://readedy.vercel.app",
+    "TTS_PROVIDER": "auto",
+    "TURSO_DATABASE_URL": "https://readedy-readedy.aws-sa-east-1.turso.io"
+  },
+  "r2_buckets": [
+    {
+      "binding": "PDFS",
+      "bucket_name": "readedy"
+    }
+  ]
+}
