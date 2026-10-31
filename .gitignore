@@ -8,3 +8,5 @@ config.js
 
 # Cache da CLI Supabase (não versionar)
 supabase/.temp/
+.vercel
+.env*
