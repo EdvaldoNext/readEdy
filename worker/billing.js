@@ -1,6 +1,6 @@
 import { userFromRequest } from "./auth.js";
 import { execute, many, one } from "./db.js";
-import { appBase, bearer, fail, json, nowIso, parseJson, readJson, secret } from "./http.js";
+import { appBase, bearer, fail, hmacHex, json, nowIso, parseJson, readJson, secret, timingSafeEqual } from "./http.js";
 
 const STORAGE_LIMIT = 1073741824;
 
@@ -31,11 +31,14 @@ export async function handleBilling(request, env, action) {
 }
 
 async function createSubscription(request, env) {
+  const body = await readJson(request);
+  const user = await userFromRequest(request, env);
+  if (user && parseJson(user.app_metadata, {}).role === "admin") {
+    throw fail("Sua conta já tem acesso vitalício.", 400);
+  }
   const mpToken = secret(env, "MERCADOPAGO_ACCESS_TOKEN");
   if (!mpToken) throw fail("Mercado Pago não configurado", 503);
-  const body = await readJson(request);
   const plan = await requirePlan(env, String(body.plan_slug || "basic_monthly"));
-  const user = await userFromRequest(request, env);
   let payerEmail = body.payer_email ? String(body.payer_email).trim() : "";
   if (user) payerEmail = payerEmail || user.email || "";
   if (!payerEmail) throw fail("Crie sua conta ou entre antes de pagar.", 400);
@@ -152,6 +155,7 @@ async function linkSubscription(request, env) {
   if (!token) throw fail("Unauthorized", 401);
   const user = await userFromRequest(request, env);
   if (!user) throw fail("Unauthorized", 401);
+  if (parseJson(user.app_metadata, {}).role === "admin") return json({ ok: true, lifetime: true });
   const body = await readJson(request);
   const checkoutToken = String(body.checkout_token || "").trim();
   if (!checkoutToken) throw fail("checkout_token obrigatório", 400);
@@ -215,34 +219,38 @@ async function linkSubscription(request, env) {
   return json({ ok: true, subscription_id: subscriptionId });
 }
 
-function verifyMpSignature(request, body, webhookSecret) {
+async function verifyMpSignature(request, body, webhookSecret) {
   const xSignature = request.headers.get("x-signature");
   const xRequestId = request.headers.get("x-request-id");
-  if (!xSignature) return false;
+  if (!xSignature || !xRequestId || !webhookSecret) return false;
   const parts = Object.fromEntries(xSignature.split(",").map((part) => {
-    const [key, value] = part.split("=");
-    return [key.trim(), (value || "").trim()];
+    const eq = part.indexOf("=");
+    return [part.slice(0, eq).trim(), part.slice(eq + 1).trim()];
   }));
   const ts = parts.ts;
-  const v1 = parts.v1;
+  const v1 = String(parts.v1 || "").toLowerCase();
   if (!ts || !v1) return false;
-  let dataId = "";
-  try {
-    dataId = JSON.parse(body).data?.id || "";
-  } catch {
-    dataId = "";
+  const url = new URL(request.url);
+  let dataId = url.searchParams.get("data.id") || "";
+  if (!dataId) {
+    try {
+      dataId = String(JSON.parse(body)?.data?.id || "");
+    } catch {
+      dataId = "";
+    }
   }
-  const manifest = `id:${dataId};request-id:${xRequestId || ""};ts:${ts};`;
-  void manifest;
-  return v1.length > 0 && webhookSecret.length > 0;
+  if (/[a-zA-Z]/.test(dataId)) dataId = dataId.toLowerCase();
+  const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+  const expected = await hmacHex(webhookSecret, manifest);
+  return timingSafeEqual(expected, v1);
 }
 
 async function webhook(request, env) {
   const rawBody = await request.text();
   const payload = rawBody ? JSON.parse(rawBody) : {};
   const webhookSecret = secret(env, "MERCADOPAGO_WEBHOOK_SECRET");
-  const hasSignature = !!request.headers.get("x-signature");
-  if (webhookSecret && hasSignature && !verifyMpSignature(request, rawBody, webhookSecret)) {
+  if (!webhookSecret) throw fail("Mercado Pago não configurado", 503);
+  if (!(await verifyMpSignature(request, rawBody, webhookSecret))) {
     throw fail("Invalid signature", 401);
   }
   const mpEventId = String(payload.data?.id || payload.id || request.headers.get("x-request-id") || crypto.randomUUID());
