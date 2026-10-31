@@ -1,6 +1,6 @@
 import { handleAuth } from "./auth.js";
 import { handleAdminStorage, handleBilling, handleVisit } from "./billing.js";
-import { json } from "./http.js";
+import { CORS, json } from "./http.js";
 import { handleQuery } from "./query.js";
 import { handleStorage } from "./storage.js";
 import { handleTts } from "./tts.js";
@@ -8,7 +8,7 @@ import { handleTts } from "./tts.js";
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") {
-      return new Response(null, { headers: json(null, 204).headers });
+      return new Response(null, { status: 204, headers: CORS });
     }
     const url = new URL(request.url);
     try {
