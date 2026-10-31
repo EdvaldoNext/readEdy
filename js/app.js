@@ -784,7 +784,8 @@ var safeStorage = (function() {
             var rate = btn.dataset.rate;
             rateRange.value = rate;
             safeStorage.setItem(_RATE_KEY, rate);
-            invalidateTtsAudioCache();
+            /* Velocidade é aplicada no player: não precisa invalidar o áudio em cache */
+            _applyTtsPlaybackRateAll();
             _applyRateBtn(rate);
         });
     });
@@ -801,6 +802,76 @@ var safeStorage = (function() {
     function _ttsRate() {
         var r = rateRange ? Number(rateRange.value) : 1;
         return (isFinite(r) && r > 0) ? r : 1;
+    }
+
+    /* Velocidade da voz da nuvem aplicada NO PLAYER (playbackRate), igual para qualquer motor TTS.
+       O servidor sempre sintetiza a 1.0×: Google Translate / StreamElements ignoram "rate", e assim
+       o áudio fica idêntico em todas as velocidades (sem nova requisição ao trocar a velocidade).
+       Nota: definir/alterar o src reseta playbackRate para defaultPlaybackRate — por isso ambos são definidos. */
+    var TTS_SERVER_RATE = 1;
+
+    function _applyTtsPlaybackRate(el) {
+        if (!el) return;
+        var r = _ttsRate();
+        try { el.defaultPlaybackRate = r; } catch (e) {}
+        try { el.playbackRate = r; } catch (e) {}
+        try { el.preservesPitch = true; } catch (e) {}
+        try { el.mozPreservesPitch = true; } catch (e) {}
+        try { el.webkitPreservesPitch = true; } catch (e) {}
+    }
+
+    function _applyTtsPlaybackRateAll() {
+        _applyTtsPlaybackRate(ttsAudioEl);
+        _applyTtsPlaybackRate(ttsPrefetchAudioEl);
+    }
+
+    /* Mapa tempo→texto: a voz faz pausas em pontuação, então cada caractere pesa 1 e pontuação
+       soma "caracteres equivalentes" de pausa. Muito mais fiel que a proporção linear simples. */
+    var _ttsTimeMapText = null;
+    var _ttsTimeMapCum = null;
+
+    function _ttsGetTimeMap(text) {
+        if (_ttsTimeMapText === text && _ttsTimeMapCum) return _ttsTimeMapCum;
+        var n = text.length;
+        var cum = new Array(n + 1);
+        var acc = 0;
+        for (var i = 0; i < n; i++) {
+            cum[i] = acc;
+            var c = text.charAt(i);
+            var w = 1;
+            var nx = i + 1 < n ? text.charAt(i + 1) : ' ';
+            var boundary = (nx === ' ' || nx === '\n' || nx === '\t');
+            if (c === '\n') w += 5;
+            else if (boundary) {
+                if ('.!?\u2026'.indexOf(c) !== -1) w += 8;
+                else if (',;:'.indexOf(c) !== -1) w += 3;
+            }
+            acc += w;
+        }
+        cum[n] = acc;
+        _ttsTimeMapText = text;
+        _ttsTimeMapCum = cum;
+        return cum;
+    }
+
+    /* Posição (índice de caractere) do texto da página para um progresso 0..1 do áudio atual.
+       Áudio fatiado (ttsProxyCharOffset > 0) cobre só o trecho final do texto. */
+    function _ttsCharFromProgress(progress, text) {
+        var n = text ? text.length : 0;
+        if (n <= 0) return 0;
+        var p = Number(progress);
+        if (!(p > 0)) p = 0;
+        if (p > 1) p = 1;
+        var base = (ttsProxyCharOffset > 0 && ttsProxyCharOffset < n) ? (ttsProxyCharOffset | 0) : 0;
+        var cum = _ttsGetTimeMap(text);
+        var target = cum[base] + p * (cum[n] - cum[base]);
+        var lo = base, hi = n - 1, res = base;
+        while (lo <= hi) {
+            var mid = (lo + hi) >> 1;
+            if (cum[mid] <= target) { res = mid; lo = mid + 1; }
+            else hi = mid - 1;
+        }
+        return res;
     }
 
     /* ── OCR: carrega Tesseract.js sob demanda (lazy) ───────────── */
@@ -974,7 +1045,7 @@ var safeStorage = (function() {
         var url = ttsProxyUrl
             + '?text='  + encodeURIComponent(sendText)
             + '&voice=' + encodeURIComponent(voice || 'pt-BR-FranciscaNeural')
-            + '&rate='  + (rate || 1.0);
+            + '&rate='  + TTS_SERVER_RATE;
         /* Supabase exige apikey na URL quando <audio src> não envia cabeçalhos */
         if (cfg && cfg.anonKey) {
             url += '&apikey=' + encodeURIComponent(cfg.anonKey);
@@ -1008,7 +1079,7 @@ var safeStorage = (function() {
 
     function _ttsCacheKey(pageNum, text, voice, rate) {
         var sendText = _ttsSendText(text);
-        return String(pageNum) + '|' + (voice || 'pt-BR-FranciscaNeural') + '|' + String(rate || 1)
+        return String(pageNum) + '|' + (voice || 'pt-BR-FranciscaNeural') + '|' + String(TTS_SERVER_RATE)
             + '|' + sendText.length + '|' + sendText.slice(0, 80);
     }
 
@@ -1104,7 +1175,7 @@ var safeStorage = (function() {
             body: JSON.stringify({
                 text: sendText,
                 voice: voice || 'pt-BR-FranciscaNeural',
-                rate: rate || 1.0
+                rate: TTS_SERVER_RATE
             })
         }).then(function(resp) {
             if (!resp.ok) {
@@ -1158,6 +1229,7 @@ var safeStorage = (function() {
             el.src = url;
             try { el.load(); } catch (e) {}
         }
+        _applyTtsPlaybackRate(el);
     }
 
     function updateMediaSession(tituloLivro, paginaAtual) {
@@ -1454,7 +1526,7 @@ var safeStorage = (function() {
                 var len = capturedText.length;
                 if (len > 0 && ttsAudioEl.duration > 0) {
                     var frac = ttsAudioEl.currentTime / ttsAudioEl.duration;
-                    var charP = Math.floor((ttsProxyResumeFrac + frac * (1 - ttsProxyResumeFrac)) * len);
+                    var charP = _ttsCharFromProgress(frac, capturedText);
                     ttsAbsCharEnd = charP;
                     ttsResumeCharOffset = charP;
                     ttsResumePageNum = capturedPage;
@@ -1536,7 +1608,7 @@ var safeStorage = (function() {
             var now = Date.now();
             if (now - hlLast < TTS_HIGHLIGHT_MS) return;
             hlLast = now;
-            var charIdx = Math.floor((resumeFrac + progress * (1 - resumeFrac)) * capturedText.length);
+            var charIdx = _ttsCharFromProgress(progress, capturedText);
             ttsAbsCharEnd = charIdx;
             updateHighlight(charIdx, 8);
         };
@@ -1564,6 +1636,7 @@ var safeStorage = (function() {
         }
 
         ttsAudioEl.onplay = function() {
+            _applyTtsPlaybackRate(ttsAudioEl);
             document.body.classList.remove('tts-paused');
             ttsProxyRecoverAttempts = 0;
             isReading = true;
@@ -1609,6 +1682,7 @@ var safeStorage = (function() {
 
         startTtsProxyWatchdog(capturedPage, capturedText);
 
+        _applyTtsPlaybackRate(ttsAudioEl);
         if (!autoPlay) return;
         var pp = ttsAudioEl.play();
         updateMediaSession(currentBookTitle, currentPageNum);
@@ -1662,6 +1736,7 @@ var safeStorage = (function() {
             ttsAudioEl.src = url;
             try { ttsAudioEl.load(); } catch (e) {}
         }
+        _applyTtsPlaybackRate(ttsAudioEl);
 
         document.body.classList.remove('tts-paused');
         isReading = true;
@@ -2107,6 +2182,8 @@ var safeStorage = (function() {
         if (len <= 0) return 0;
         if (isReading && ttsEngine === 'proxy' && ttsAudioEl && ttsAudioEl.duration > 0) {
             var progress = ttsAudioEl.currentTime / ttsAudioEl.duration;
+            var tmText = (ttsPageCache.pageNum === pageNum && ttsPageCache.text) ? ttsPageCache.text : fullPageText;
+            if (tmText && tmText.length === len) return _ttsCharFromProgress(progress, tmText);
             return Math.floor((ttsProxyResumeFrac + progress * (1 - ttsProxyResumeFrac)) * len);
         }
         if (ttsAbsCharEnd > 0) return ttsAbsCharEnd;
@@ -4811,6 +4888,14 @@ var safeStorage = (function() {
                 pdfTextLayerSpans = buildPdfTextLayer(viewport, textContent, textLayer);
                 var ttsBuilt = buildTtsTextAndRanges(textContent.items || []);
                 ttsPageCache = { pageNum: num, text: ttsBuilt.text, ranges: ttsBuilt.ranges };
+                /* O início do render zera ttsCharRanges; na leitura contínua o áudio da página nova já
+                   começou antes do render terminar — restaurar as faixas para a tarja continuar. */
+                if (pageNum === num && (isReading || document.body.classList.contains('tts-paused'))) {
+                    ttsCharRanges = ttsBuilt.ranges || [];
+                    if (!fullPageText) fullPageText = ttsBuilt.text || '';
+                    ttsLastFullTextLen = fullPageText.length;
+                    ttsPdfHighlightLast = { start: -1, end: -1 };
+                }
                 updateTtsSeekButtonsVisible();
 
                 document.getElementById('page-info').textContent = num + ' / ' + pdfDoc.numPages;
@@ -4976,7 +5061,8 @@ var safeStorage = (function() {
             var lenP = fullPageText.length || (ttsPageCache.text || '').length;
             if (lenP > 0) {
                 var fracP = Math.max(0, Math.min(1, ttsAudioEl.currentTime / ttsAudioEl.duration));
-                var charP = Math.floor((ttsProxyResumeFrac + fracP * (1 - ttsProxyResumeFrac)) * lenP);
+                var textP = fullPageText.length ? fullPageText : (ttsPageCache.text || '');
+                var charP = _ttsCharFromProgress(fracP, textP);
                 ttsAbsCharEnd = charP;
                 ttsResumeCharOffset = charP;
                 ttsResumePageNum = pageNum;
