@@ -108,7 +108,7 @@ function wireSettingsUi() {
         });
     }
 
-    /* ── opt-tts-highlight (tarja amarela, desligada por padrão) ── */
+    /* ── opt-tts-highlight (sublinhado, desligado por padrão) ── */
     var hlCb = document.getElementById('opt-tts-highlight');
     if (hlCb) {
         hlCb.checked = safeStorage.getItem('readera-tts-highlight') === '1';

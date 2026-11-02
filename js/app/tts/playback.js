@@ -5,38 +5,46 @@
     a ordem de carregamento está em index.html)
    ══════════════════════════════════════════════════════════════ */
 
+function extractPageSpeech(num) {
+    return pdfDoc.getPage(num).then(function(page) {
+        return page.getTextContent().then(function(textContent) {
+            var items = textContent.items || [];
+            var built = buildTtsTextAndRanges(items);
+            if (isSpeechReadable(built.text)) {
+                return { pageNum: num, text: built.text, ranges: built.ranges, fromOcr: false };
+            }
+            var hadGlyphs = false;
+            for (var i = 0; i < items.length; i++) {
+                if (items[i] && String(items[i].str || '').length) { hadGlyphs = true; break; }
+            }
+            var ocrCb = document.getElementById('opt-ocr-scan');
+            /* Fonte simbólica: o PDF desenha as letras, mas o texto extraído é lixo.
+               Página vazia de verdade só passa pelo OCR se o utilizador ligou a opção. */
+            var wantOcr = hadGlyphs ? true : !!(ocrCb && ocrCb.checked);
+            if (!wantOcr) return { pageNum: num, text: '', ranges: [], fromOcr: false };
+            return runOcrOnPage(page, num, hadGlyphs ? 'encoded' : 'scan').then(function(ocr) {
+                if ((ocr.text || '').trim()) {
+                    showTtsToast('Texto reconhecido via OCR — pode ter imprecisões.');
+                }
+                return { pageNum: num, text: ocr.text || '', ranges: [], fromOcr: true };
+            }).catch(function(err) {
+                console.error('[OCR]', err);
+                showTtsToast('OCR falhou nesta página.');
+                return { pageNum: num, text: '', ranges: [], fromOcr: true };
+            });
+        });
+    });
+}
+
 function ensureTtsPageCache(targetPage) {
     var num = (targetPage != null && targetPage > 0) ? (targetPage | 0) : pageNum;
     if (ttsPageCache.pageNum === num && (ttsPageCache.text || '').trim()) {
         return Promise.resolve(ttsPageCache);
     }
     if (!pdfDoc) return Promise.reject(new Error('Sem PDF aberto'));
-    return pdfDoc.getPage(num).then(function(page) {
-        return page.getTextContent().then(function(textContent) {
-            var built = buildTtsTextAndRanges(textContent.items || []);
-            if (built.text.trim()) {
-                ttsPageCache = { pageNum: num, text: built.text, ranges: built.ranges };
-                return ttsPageCache;
-            }
-            /* Sem texto digital — tentar OCR se ativado pelo utilizador */
-            var ocrCb = document.getElementById('opt-ocr-scan');
-            if (!ocrCb || !ocrCb.checked) {
-                ttsPageCache = { pageNum: num, text: '', ranges: [] };
-                return ttsPageCache;
-            }
-            return runOcrOnPage(page, num).then(function(ocr) {
-                ttsPageCache = { pageNum: num, text: ocr.text, ranges: [] };
-                if (ocr.text.trim()) {
-                    showTtsToast('Texto reconhecido via OCR — pode ter imprecisões.');
-                }
-                return ttsPageCache;
-            }).catch(function(err) {
-                console.error('[OCR]', err);
-                showTtsToast('OCR falhou nesta página.');
-                ttsPageCache = { pageNum: num, text: '', ranges: [] };
-                return ttsPageCache;
-            });
-        });
+    return extractPageSpeech(num).then(function(result) {
+        ttsPageCache = { pageNum: num, text: result.text, ranges: result.ranges || [] };
+        return ttsPageCache;
     });
 }
 
@@ -107,10 +115,9 @@ function prefetchNextPageForContinuous(fromPage) {
     if (!contEl || !contEl.checked) return;
     var next = fromPage + 1;
     if (next > pdfDoc.numPages || ttsNextPageCache.pageNum === next) return;
-    pdfDoc.getPage(next).then(function(page) { return page.getTextContent(); }).then(function(tc) {
-        var built = buildTtsTextAndRanges(tc.items || []);
-        ttsNextPageCache = { pageNum: next, text: built.text, ranges: built.ranges };
-        if (built.text && built.text.trim()) preFetchTtsAudio(next, built.text);
+    extractPageSpeech(next).then(function(result) {
+        ttsNextPageCache = { pageNum: next, text: result.text, ranges: result.ranges || [] };
+        if (result.text && result.text.trim()) preFetchTtsAudio(next, result.text);
     }).catch(function() {});
 }
 
@@ -129,10 +136,9 @@ function ttsPreparePageForBackgroundRead(num) {
     }
     if (ttsPageCache.pageNum === num && ttsPageCache.text) return Promise.resolve();
 
-    return pdfDoc.getPage(num).then(function(page) { return page.getTextContent(); }).then(function(textContent) {
-        var built = buildTtsTextAndRanges(textContent.items || []);
-        ttsPageCache = { pageNum: num, text: built.text, ranges: built.ranges };
-        if (built.text && built.text.trim() && ttsEngine === 'proxy') preFetchTtsAudio(num, built.text);
+    return extractPageSpeech(num).then(function(result) {
+        ttsPageCache = { pageNum: num, text: result.text, ranges: result.ranges || [] };
+        if (result.text && result.text.trim() && ttsEngine === 'proxy') preFetchTtsAudio(num, result.text);
     });
 }
 

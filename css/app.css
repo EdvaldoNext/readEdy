@@ -116,9 +116,9 @@
         }
         .text-layer { position: absolute; left: 0; top: 0; overflow: hidden; line-height: 1; pointer-events: none; }
         .text-layer span { position: absolute; color: transparent; white-space: pre; transform-origin: 0 0; box-sizing: content-box; }
-        .text-layer span.tts-active { background: rgba(255, 214, 74, 0.68); border-radius: 2px; box-shadow: 0 0 0 1px rgba(255, 180, 0, 0.35); }
-        body.dark .text-layer span.tts-active { background: rgba(212, 168, 42, 0.62); box-shadow: 0 0 0 1px rgba(255, 200, 80, 0.25); }
-        body.tts-paused .text-layer span.tts-active { box-shadow: 0 0 0 2px rgba(255, 140, 0, 0.55); }
+        .text-layer span.tts-active { background: none; box-shadow: none; border-bottom: 2px solid #e53935; }
+        body.dark .text-layer span.tts-active { background: none; border-bottom-color: #ff5252; }
+        body.tts-paused .text-layer span.tts-active { border-bottom-width: 3px; border-bottom-color: #ff7043; }
         /* Barra de leitura: cartão flutuante na mesma linguagem da Home */
         .controls-bottom {
             position: fixed;

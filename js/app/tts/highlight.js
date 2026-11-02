@@ -1,9 +1,37 @@
 /* ═══════════════════════════════════════════════════════════════
    ReadEdy · tts/highlight
-   Texto da página, camada de texto do PDF e tarja amarela da leitura.
+   Texto da página, camada de texto do PDF e sublinhado da leitura.
    (script clássico: compartilha o escopo global com os demais módulos;
     a ordem de carregamento está em index.html)
    ══════════════════════════════════════════════════════════════ */
+
+/* PDFs antigos (Word/Ghostscript) desenham as letras numa fonte simbólica.
+   O texto extraído vira caracteres de controle e símbolos — a voz diz
+   "asterisco", "por cento", "barra". Isso não é prosa. */
+function isSpeechReadable(text) {
+    var s = String(text || '');
+    var letters = 0;
+    var noise = 0;
+    var other = 0;
+    var symbols = '*%#_^~\\|';
+    for (var i = 0; i < s.length; i++) {
+        var code = s.charCodeAt(i);
+        if (code === 9 || code === 10 || code === 13 || code === 32) continue;
+        var ch = s.charAt(i);
+        if (code < 32 || (code >= 0x7F && code <= 0x9F) || (code >= 0xE000 && code <= 0xF8FF) || symbols.indexOf(ch) !== -1) {
+            noise++;
+        } else if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122) || (code >= 192 && code <= 687 && code !== 215 && code !== 247)) {
+            letters++;
+        } else {
+            other++;
+        }
+    }
+    var signal = letters + noise + other;
+    if (signal < 12) return letters >= 8;
+    if (noise >= 8 && noise > letters * 0.08) return false;
+    if (letters / signal < 0.62) return false;
+    return true;
+}
 
 function buildTtsTextAndRanges(items) {
     let text = '';

@@ -143,12 +143,18 @@ function renderPage(num, skipStopTts) {
             if (myRender !== renderGen) return Promise.resolve();
             pdfTextLayerSpans = buildPdfTextLayer(viewport, textContent, textLayer);
             var ttsBuilt = buildTtsTextAndRanges(textContent.items || []);
-            ttsPageCache = { pageNum: num, text: ttsBuilt.text, ranges: ttsBuilt.ranges };
+            var readable = isSpeechReadable(ttsBuilt.text);
+            if (readable) {
+                ttsPageCache = { pageNum: num, text: ttsBuilt.text, ranges: ttsBuilt.ranges };
+            } else if (!(ttsPageCache.pageNum === num && (ttsPageCache.text || '').trim())) {
+                /* Não guardar o lixo da fonte simbólica — a leitura usa OCR. */
+                ttsPageCache = { pageNum: num, text: '', ranges: [] };
+            }
             /* O início do render zera ttsCharRanges; na leitura contínua o áudio da página nova já
                começou antes do render terminar — restaurar as faixas para a tarja continuar. */
-            if (pageNum === num && (isReading || document.body.classList.contains('tts-paused'))) {
-                ttsCharRanges = ttsBuilt.ranges || [];
-                if (!fullPageText) fullPageText = ttsBuilt.text || '';
+            if (pageNum === num && (isReading || document.body.classList.contains('tts-paused')) && ttsPageCache.pageNum === num) {
+                ttsCharRanges = ttsPageCache.ranges || [];
+                if (!fullPageText) fullPageText = ttsPageCache.text || '';
                 ttsLastFullTextLen = fullPageText.length;
                 ttsPdfHighlightLast = { start: -1, end: -1 };
             }
@@ -162,7 +168,7 @@ function renderPage(num, skipStopTts) {
             syncPageJumpInput(true);
             refreshHomeHero();
 
-            if (ttsBuilt.text && ttsBuilt.text.trim()) {
+            if (readable && ttsBuilt.text && ttsBuilt.text.trim()) {
                 preFetchTtsAudio(num, ttsBuilt.text);
             }
             var contPrefetch = document.getElementById('continuous-read');

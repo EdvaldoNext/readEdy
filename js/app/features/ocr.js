@@ -40,7 +40,9 @@ function ensureTesseract() {
     });
 }
 
-function runOcrOnPage(page, num) {
+var _ocrQueue = Promise.resolve();
+
+function runOcrOnPage(page, num, reason) {
     if (!canUsePremiumFeatures()) {
         showTtsToast('OCR requer login e plano ativo.');
         return Promise.resolve({ text: '', ranges: [], fromOcr: true });
@@ -48,13 +50,26 @@ function runOcrOnPage(page, num) {
     if (ocrPageCache[num]) {
         return Promise.resolve({ text: ocrPageCache[num], ranges: [], fromOcr: true });
     }
+    var job = _ocrQueue.then(function() {
+        if (ocrPageCache[num]) {
+            return { text: ocrPageCache[num], ranges: [], fromOcr: true };
+        }
+        return _recognizePage(page, num, reason);
+    });
+    _ocrQueue = job.then(function() { return null; }, function() { return null; });
+    return job;
+}
+
+function _recognizePage(page, num, reason) {
     var scale = 2;
     var viewport = page.getViewport({ scale: scale });
     var canvas = document.createElement('canvas');
     canvas.width  = viewport.width;
     canvas.height = viewport.height;
     var ctx = canvas.getContext('2d');
-    showTtsToast('PDF escaneado — reconhecendo texto…');
+    showTtsToast(reason === 'encoded'
+        ? 'Este PDF não tem texto legível. Reconhecendo a página…'
+        : 'PDF escaneado — reconhecendo texto…');
     return page.render({ canvasContext: ctx, viewport: viewport }).promise
         .then(function() { return ensureTesseract(); })
         .then(function(worker) { return worker.recognize(canvas); })

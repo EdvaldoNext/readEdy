@@ -255,16 +255,13 @@ function speakCurrentPage() {
     }
 
     /* WebSpeech */
-    if (ttsPageCache.pageNum === pageNum && ttsPageCache.text && ttsPageCache.text.trim()) {
-        _executeSpeechWebSpeech(ttsPageCache.text, ttsPageCache.ranges || []);
-        return Promise.resolve();
-    }
-    return pdfDoc.getPage(pageNum).then(function(page) {
-        return page.getTextContent();
-    }).then(function(textContent) {
-        var built = buildTtsTextAndRanges(textContent.items || []);
-        ttsPageCache = { pageNum: pageNum, text: built.text, ranges: built.ranges };
-        _executeSpeechWebSpeech(built.text, built.ranges);
+    return ensureTtsPageCache(pageNum).then(function(cache) {
+        if (ttsStopRequested) return;
+        if (!(cache.text || '').trim()) {
+            showTtsToast('Esta página não tem texto legível.');
+            return;
+        }
+        _executeSpeechWebSpeech(cache.text, cache.ranges || []);
     }).catch(function(e) {
         console.error(e); showTtsToast('Erro ao extrair texto da página.'); stopTTS();
     });
@@ -355,15 +352,18 @@ function toggleTTS() {
             if (b) { b.disabled = true; b.title = 'A preparar leitura…'; }
         });
         var targetPage = pageNum;
-        pdfDoc.getPage(targetPage).then(function(pg) { return pg.getTextContent(); }).then(function(tc) {
-            var built = buildTtsTextAndRanges(tc.items || []);
-            ttsPageCache = { pageNum: targetPage, text: built.text, ranges: built.ranges };
+        ensureTtsPageCache(targetPage).then(function(cache) {
             speakLock = false;
             ['btn-tts', 'btn-tts-float'].forEach(function(id) {
                 var b = document.getElementById(id);
                 if (b) b.disabled = false;
             });
-            if (pageNum === targetPage && !isReading) _executeSpeechWebSpeech(built.text, built.ranges);
+            if (!(cache.text || '').trim()) {
+                showTtsToast('Esta página não tem texto legível.');
+                updateTtsButtonLabel();
+                return;
+            }
+            if (pageNum === targetPage && !isReading) _executeSpeechWebSpeech(cache.text, cache.ranges || []);
             else { updateTtsButtonLabel(); }
         }).catch(function(e) {
             console.error(e); speakLock = false;
