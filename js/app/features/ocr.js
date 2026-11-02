@@ -75,6 +75,7 @@ function _recognizePage(page, num, reason) {
         .then(function(worker) { return worker.recognize(canvas); })
         .then(function(result) {
             var text = (result.data && result.data.text) ? result.data.text.trim() : '';
+            if (typeof normalizeSpeechText === 'function') text = normalizeSpeechText(text);
             ocrPageCache[num] = text;
             return { text: text, ranges: [], fromOcr: true };
         });
