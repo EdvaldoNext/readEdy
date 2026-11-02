@@ -348,35 +348,144 @@ function buildTtsTextAndRanges(items) {
     return { text: text, ranges: ranges };
 }
 
+function highlightSpeechText() {
+    if (fullPageText && fullPageText.length) return fullPageText;
+    if (ttsPageCache && ttsPageCache.pageNum === pageNum && ttsPageCache.text) return ttsPageCache.text;
+    return '';
+}
+
+function isSpeechSpace(ch) {
+    return ch === ' ' || ch === '\n' || ch === '\t' || ch === '\r';
+}
+
+/* Palavra falada que contém este índice. Espaço entre palavras cai na seguinte. */
+function speechWordAt(text, charIndex) {
+    var n = text ? text.length : 0;
+    if (!n) return null;
+    var i = charIndex | 0;
+    if (i < 0) i = 0;
+    if (i >= n) i = n - 1;
+    if (isSpeechSpace(text.charAt(i))) {
+        var fwd = i;
+        while (fwd < n && isSpeechSpace(text.charAt(fwd))) fwd++;
+        if (fwd < n) i = fwd;
+        else {
+            while (i > 0 && isSpeechSpace(text.charAt(i - 1))) i--;
+            if (i > 0) i--;
+        }
+    }
+    var start = i;
+    while (start > 0 && !isSpeechSpace(text.charAt(start - 1))) start--;
+    var end = i + 1;
+    while (end < n && !isSpeechSpace(text.charAt(end))) end++;
+    if (end <= start) return null;
+    return { start: start, end: end };
+}
+
+/* Largura relativa: o risco acompanha o desenho da palavra, não só a contagem de letras. */
+function speechCharWeight(ch) {
+    if (isSpeechSpace(ch)) return 0.35;
+    if ('ilíìïĩI|\'´`’.,:;!¡'.indexOf(ch) !== -1) return 0.42;
+    if ('tfjr'.indexOf(ch) !== -1) return 0.58;
+    if ('mwMW@%'.indexOf(ch) !== -1) return 1.45;
+    var code = ch.charCodeAt(0);
+    if (code >= 65 && code <= 90) return 1.12;
+    return 1;
+}
+
+function speechSliceWeight(text, from, to) {
+    var n = text ? text.length : 0;
+    if (from < 0) from = 0;
+    if (to > n) to = n;
+    var w = 0;
+    for (var i = from; i < to; i++) w += speechCharWeight(text.charAt(i));
+    return w;
+}
+
+function clearSpanWordMarks(el) {
+    if (!el) return;
+    if (el.classList) el.classList.remove('tts-active');
+    var marks = el.querySelectorAll ? el.querySelectorAll('.tts-word-mark') : [];
+    for (var i = marks.length - 1; i >= 0; i--) {
+        if (marks[i].parentNode) marks[i].parentNode.removeChild(marks[i]);
+    }
+}
+
 function clearPdfHighlight() {
     ttsPdfHighlightLast = { start: -1, end: -1 };
     if (!pdfTextLayerSpans) return;
     Object.keys(pdfTextLayerSpans).forEach(function(k) {
-        var el = pdfTextLayerSpans[k];
-        if (el && el.classList) el.classList.remove('tts-active');
+        clearSpanWordMarks(pdfTextLayerSpans[k]);
     });
 }
 
-function updatePdfReadHighlight(charIndex, charLength) {
+function placeWordMark(span, leftPct, widthPct) {
+    if (!(widthPct > 0)) return;
+    var mark = document.createElement('span');
+    mark.className = 'tts-word-mark';
+    mark.style.left = leftPct + '%';
+    mark.style.width = widthPct + '%';
+    span.appendChild(mark);
+    span.classList.add('tts-active');
+}
+
+function updatePdfReadHighlight(charIndex) {
     if (!pdfTextLayerSpans || !ttsCharRanges.length) return;
-    var start = Math.max(0, charIndex | 0);
-    var end = start + Math.max(1, charLength | 0);
-    if (start === ttsPdfHighlightLast.start && end === ttsPdfHighlightLast.end) return;
-    ttsPdfHighlightLast = { start: start, end: end };
-    Object.keys(pdfTextLayerSpans).forEach(function(k) {
-        var el = pdfTextLayerSpans[k];
-        if (el && el.classList) el.classList.remove('tts-active');
-    });
-    var seen = {};
+    var text = highlightSpeechText();
+    var word = speechWordAt(text, charIndex);
+    if (!word) {
+        clearPdfHighlight();
+        return;
+    }
+    if (word.start === ttsPdfHighlightLast.start && word.end === ttsPdfHighlightLast.end) return;
+    ttsPdfHighlightLast = { start: word.start, end: word.end };
+
+    var hit = Object.create(null);
+    var byItem = Object.create(null);
     for (var i = 0; i < ttsCharRanges.length; i++) {
         var r = ttsCharRanges[i];
-        if (r.end > start && r.start < end && pdfTextLayerSpans[r.itemIndex]) {
-            if (!seen[r.itemIndex]) {
-                seen[r.itemIndex] = true;
-                pdfTextLayerSpans[r.itemIndex].classList.add('tts-active');
-            }
+        if (r.end > word.start && r.start < word.end && pdfTextLayerSpans[r.itemIndex]) {
+            hit[String(r.itemIndex)] = true;
         }
     }
+    for (var h = 0; h < ttsCharRanges.length; h++) {
+        var range = ttsCharRanges[h];
+        var key = String(range.itemIndex);
+        if (!hit[key]) continue;
+        if (!byItem[key]) byItem[key] = [];
+        byItem[key].push(range);
+    }
+
+    Object.keys(pdfTextLayerSpans).forEach(function(k) {
+        clearSpanWordMarks(pdfTextLayerSpans[k]);
+    });
+
+    Object.keys(byItem).forEach(function(key) {
+        var span = pdfTextLayerSpans[key];
+        var parts = byItem[key].slice().sort(function(a, b) { return a.start - b.start; });
+        var total = 0;
+        var weights = [];
+        for (var p = 0; p < parts.length; p++) {
+            var rw = speechSliceWeight(text, parts[p].start, parts[p].end);
+            if (!(rw > 0)) rw = Math.max(0, parts[p].end - parts[p].start);
+            weights.push(rw);
+            total += rw;
+        }
+        if (!(total > 0)) return;
+        var acc = 0;
+        for (var j = 0; j < parts.length; j++) {
+            var part = parts[j];
+            var a = part.start > word.start ? part.start : word.start;
+            var b = part.end < word.end ? part.end : word.end;
+            if (b > a) {
+                var before = speechSliceWeight(text, part.start, a);
+                var mid = speechSliceWeight(text, a, b);
+                if (!(mid > 0)) mid = b - a;
+                placeWordMark(span, ((acc + before) / total) * 100, (mid / total) * 100);
+            }
+            acc += weights[j];
+        }
+    });
 }
 
 /* scrollIntoView com opções não é suportado em Safari < 15.4 — usar try/catch */
@@ -395,8 +504,8 @@ function scrollTtsHighlightIntoView() {
     if (ttsScrollHighlightRaf != null) return;
     ttsScrollHighlightRaf = requestAnimationFrame(function() {
         ttsScrollHighlightRaf = null;
-        var span = document.querySelector('#pdf-render-area .text-layer span.tts-active');
-        if (span) safeScrollIntoView(span);
+        var mark = document.querySelector('#pdf-render-area .text-layer .tts-word-mark');
+        if (mark) safeScrollIntoView(mark);
     });
 }
 
@@ -427,6 +536,7 @@ function buildPdfTextLayer(viewport, textContent, textLayerDiv) {
         span.style.fontSize = fontHeight + 'px';
         span.style.lineHeight = '1';
         span.style.fontFamily = 'sans-serif';
+        span.style.width = spanW + 'px';
         span.style.minWidth = spanW + 'px';
         if (Math.abs(angle) > 0.003) span.style.transform = 'rotate(' + angle + 'rad)';
         textLayerDiv.appendChild(span);
