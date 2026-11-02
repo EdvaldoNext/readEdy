@@ -74,7 +74,7 @@ async function putObject(request, env, objectPath) {
   ownedPath(user.id, objectPath);
   const bytes = await request.arrayBuffer();
   if (!bytes.byteLength) throw fail("Arquivo PDF vazio", 400);
-  await assertUploadQuota(env, user.id, bytes.byteLength);
+  await assertUploadQuota(env, user, bytes.byteLength);
   await env.PDFS.put(objectPath, bytes, {
     httpMetadata: { contentType: request.headers.get("Content-Type") || "application/pdf" },
   });

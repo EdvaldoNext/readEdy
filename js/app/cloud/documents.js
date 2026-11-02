@@ -177,35 +177,44 @@ function uploadPdfToCloudInternal(silent) {
         return Promise.reject(new Error('Assinatura ativa necessária. Escolha um plano na aba Conta.'));
     }
     if (cloudDocumentId) return Promise.resolve(null);
+    if (!pdfCacheBytes.byteLength) {
+        return Promise.reject(new Error('O PDF foi lido, mas a cópia para a nuvem se perdeu. Abra o arquivo outra vez.'));
+    }
     var userId = ReadEdyAuth.getUserId();
-    var newBytes = pdfCacheBytes.byteLength;
+    var uploadBody = new Blob([pdfCacheBytes], { type: 'application/pdf' });
+    var newBytes = uploadBody.size || pdfCacheBytes.byteLength;
+    var pageCount = pdfDoc.numPages;
+    var savedPage = pageNum;
+    var lifetime = !!(ReadEdyAuth.isAdmin && ReadEdyAuth.isAdmin());
     return ownedDocuments()
         .select('bytes')
         .then(function(res) {
             if (res.error) throw res.error;
-            var rows = res.data || [];
-            var pdfCount = rows.length;
-            var totalBytes = 0;
-            for (var i = 0; i < rows.length; i++) totalBytes += Number(rows[i].bytes) || 0;
-            var plan = window.ReadEdyBilling && ReadEdyBilling.getStatus() && ReadEdyBilling.getStatus().plan;
-            var maxPdfs = plan && plan.max_pdfs ? plan.max_pdfs : 3;
-            var maxMb = plan && plan.storage_mb ? plan.storage_mb : 45;
-            var maxBytes = maxMb * 1024 * 1024;
-            if (pdfCount >= maxPdfs) {
-                throw new Error('Limite do plano: máximo ' + maxPdfs + ' PDFs na nuvem.');
-            }
-            if (totalBytes + newBytes > maxBytes) {
-                throw new Error('Limite do plano: máximo ' + maxMb + ' MB na nuvem.');
+            if (!lifetime) {
+                var rows = res.data || [];
+                var pdfCount = rows.length;
+                var totalBytes = 0;
+                for (var i = 0; i < rows.length; i++) totalBytes += Number(rows[i].bytes) || 0;
+                var plan = window.ReadEdyBilling && ReadEdyBilling.getStatus() && ReadEdyBilling.getStatus().plan;
+                var maxPdfs = plan && plan.max_pdfs ? plan.max_pdfs : 3;
+                var maxMb = plan && plan.storage_mb ? plan.storage_mb : 45;
+                var maxBytes = maxMb * 1024 * 1024;
+                if (pdfCount >= maxPdfs) {
+                    throw new Error('Limite do plano: máximo ' + maxPdfs + ' PDFs na nuvem.');
+                }
+                if (totalBytes + newBytes > maxBytes) {
+                    throw new Error('Limite do plano: máximo ' + maxMb + ' MB na nuvem.');
+                }
             }
             var docId = generateUUID();
             var path = userId + '/' + docId + '.pdf';
             var title = lastOpenedFileName || 'documento.pdf';
-            return readeraSb.storage.from('pdfs').upload(path, pdfCacheBytes, { contentType: 'application/pdf', upsert: false })
+            return readeraSb.storage.from('pdfs').upload(path, uploadBody, { contentType: 'application/pdf', upsert: false })
                 .then(function(r) {
                     if (r.error) throw r.error;
                     return readeraSb.from('documents').insert({
                         id: docId, user_id: userId, title: title, storage_path: path,
-                        bytes: newBytes, num_pages: pdfDoc.numPages, last_page: pageNum
+                        bytes: newBytes, num_pages: pageCount, last_page: savedPage
                     }).select('id').single();
                 }).then(function(r) {
                     if (r.error) throw r.error;
@@ -342,11 +351,13 @@ function attemptAutoCloudSync() {
     updateCloudChrome();
     var badge = document.getElementById('cloud-badge');
     setCloudBadge('pending', 'Nuvem: a enviar PDF…');
-    uploadPdfToCloudInternal(true).then(function() {
+    uploadPdfToCloudInternal(false).then(function() {
         setCloudBadge('on', 'Nuvem ligada');
     }).catch(function(err) {
         console.warn('Auto-nuvem:', err);
-        setCloudBadge('on', 'Nuvem ligada — toque em ☁️⬆ para guardar');
+        var msg = (err && err.message) ? err.message : String(err || 'erro desconhecido');
+        showNotification('Não foi possível guardar o PDF na nuvem: ' + msg.slice(0, 160), true);
+        setCloudBadge('error', 'Nuvem: o PDF não foi guardado');
     }).then(function() {
         cloudSyncInFlight = false;
         updateCloudChrome();

@@ -109,7 +109,10 @@ async function planLimits(env, userId) {
   return { maxPdfs, maxBytes: maxMb * 1024 * 1024, maxMb };
 }
 
-export async function assertUploadQuota(env, userId, extraBytes) {
+export async function assertUploadQuota(env, user, extraBytes) {
+  if (isAdmin(user)) return;
+  const userId = user && user.id;
+  if (!userId) throw fail("Unauthorized", 401);
   const rows = await many(env, "SELECT bytes FROM documents WHERE user_id = ?", [userId]);
   const limits = await planLimits(env, userId);
   if (rows.length >= limits.maxPdfs) {
@@ -225,7 +228,7 @@ async function handleUserTable(env, user, body) {
     const payload = body.payload || {};
     const id = payload.id || crypto.randomUUID();
     ownedPath(user.id, payload.storage_path);
-    await assertUploadQuota(env, user.id, payload.bytes);
+    await assertUploadQuota(env, user, payload.bytes);
     await execute(
       env,
       `INSERT INTO documents

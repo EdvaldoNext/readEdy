@@ -317,7 +317,9 @@ window.ReadEdyCloud = (function() {
                         }).then(function(res) {
                             if (!res.ok) {
                                 return res.json().catch(function() { return {}; }).then(function(data) {
-                                    return storageError(new Error((data && data.error) || ('HTTP ' + res.status)));
+                                    var message = (data && (typeof data.error === 'string' ? data.error : data.error && data.error.message)) || ('HTTP ' + res.status);
+                                    if (res.status === 413) message = 'Este PDF passa de 100 MB e não cabe num único envio.';
+                                    return storageError(new Error(message));
                                 });
                             }
                             return { data: { path: path }, error: null };
