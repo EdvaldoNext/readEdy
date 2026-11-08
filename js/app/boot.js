@@ -89,8 +89,24 @@ wireScrollNavControls();
 
 wireSettingsUi();
 
+/* Mantém a tela acesa enquanto o app está visível (Chrome, Brave, Safari 16.4+).
+   O navegador solta o cadeado ao ir para segundo plano; o áudio não é pausado. */
+var screenWakeLock = null;
+
+function acquireScreenWakeLock() {
+    if (!('wakeLock' in navigator) || document.hidden || screenWakeLock) return;
+    navigator.wakeLock.request('screen').then(function(lock) {
+        screenWakeLock = lock;
+        lock.addEventListener('release', function() { screenWakeLock = null; });
+    }).catch(function() {});
+}
+
+acquireScreenWakeLock();
+document.addEventListener('pointerdown', acquireScreenWakeLock);
+
 document.addEventListener('visibilitychange', function() {
     if (document.hidden) return;
+    acquireScreenWakeLock();
     flushTtsPendingRender();
     /* Retomar avanço contínuo se o áudio parou em background (mobile). */
     if (pdfDoc && !isReading && !speakLock && !ttsContinuousAdvanceLock && !document.body.classList.contains('tts-paused')) {
@@ -108,6 +124,7 @@ document.addEventListener('visibilitychange', function() {
 });
 
 window.addEventListener('pageshow', function() {
+    acquireScreenWakeLock();
     flushTtsPendingRender();
 });
 
